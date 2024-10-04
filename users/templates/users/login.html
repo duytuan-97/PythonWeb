@@ -1,0 +1,32 @@
+{% extends "template.html" %}
+
+{% block title %}
+    Login
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">Login</div>
+
+                <div class="card-body">
+                    <section>
+                        <h2>LOgin</h2>
+                        <form class="form-with-validation" action="/users/login/" method="post">
+                            {% csrf_token %}
+                            {{ form }}
+                            {% if requests.GET.next %}
+                                <input type="hidden" name="next" value="{{ requests.GET.next}}" />
+                            {% endif %}
+                            {% comment %} <button type="submit" class="btn btn-primary">Register</button> {% endcomment %}
+                            <button type="submit" class="btn btn-primary">Submit</button>
+                        </form>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>   
+{% endblock %}
