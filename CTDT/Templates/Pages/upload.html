@@ -1,0 +1,48 @@
+{% extends "template.html" %}
+
+{% block title %}
+Upload File
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">Upload File</div>
+                    
+                <div class="card-body">
+                    <h2>Tải lên file lên</h2>
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+
+                        {% if messages %}
+                        <div class="messages" style="color: red">
+                            {% for message in messages %}
+                                <div class="message {{ message.tags }}">{{ message }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary">Tải file lên</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>  
+<script>
+    // Kiểm tra xem có thông báo nào không
+    window.onload = function() {
+      var messages = document.querySelectorAll('.messages .message');
+      if (messages.length > 0) {
+        // Hiển thị modal hoặc alert
+        // Sử dụng thư viện như Bootstrap, jQuery UI hoặc tạo modal custom
+        // Ví dụ:
+        alert("Đã tạo thư mục theo cấu trúc thành công!");
+      }
+    };
+  </script>
+
+{% endblock %}

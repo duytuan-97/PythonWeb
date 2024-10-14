@@ -13,6 +13,16 @@ Home
 
                 <div class="card-body">
                     <h1>Test nekkkkkkkkkkk</h1>
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+                        {% comment %} <button type="submit">Upload</button> {% endcomment %}
+                    </form>
                 </div>
             </div>
         </div>
