@@ -8,8 +8,6 @@ class UploadedFile(models.Model):
 
 
 # Create your models here.
-
-
 class Post(models.Model):
     title = models.CharField(max_length=100)
     body = models.TextField()
@@ -21,3 +19,54 @@ class Post(models.Model):
     # phương thức có thể gọi trên model, hiển thị dữ liệu title
     def __str__(self):
         return self.title
+
+#Model Hộp
+class box(models.Model):
+    title = models.CharField(max_length=250)
+    slug = models.SlugField(max_length=150)
+    location = models.CharField(max_length=250)
+    created_on = models.DateTimeField(auto_now_add=True)
+    
+    # phương thức có thể gọi trên model, hiển thị dữ liệu title
+    def __str__(self):
+        return self.title
+
+#Model Tiêu Chuẩn 
+class standard(models.Model):
+    title = models.CharField(max_length=250)
+    slug = models.SlugField(max_length=150)
+    box = models.ForeignKey(box, on_delete=models.CASCADE)
+    created_on = models.DateTimeField(auto_now_add=True)
+    
+    # phương thức có thể gọi trên model, hiển thị dữ liệu title
+    def __str__(self):
+        return self.title
+
+#Model Tiêu Chí 
+class criterion(models.Model):
+    title = models.CharField(max_length=250)
+    slug = models.SlugField(max_length=150)
+    standard = models.ForeignKey(standard, on_delete=models.CASCADE)
+    created_on = models.DateTimeField(auto_now_add=True)
+    
+    # phương thức có thể gọi trên model, hiển thị dữ liệu title
+    def __str__(self):
+        return self.title
+    
+
+#Model Minh chứng 
+class attest(models.Model):
+    id = models.CharField(max_length=20, primary_key=True)
+    title = models.CharField(max_length=250)
+    body = models.TextField()
+    performer = models.TextField()
+    note = models.TextField()
+    slug = models.SlugField(max_length=150)
+    image = models.ImageField(default='fallback.jpeg', blank=True)
+    criterion = models.ForeignKey(criterion, on_delete=models.CASCADE)
+    created_on = models.DateTimeField(auto_now_add=True)
+    
+    # phương thức có thể gọi trên model, hiển thị dữ liệu title
+    def __str__(self):
+        return self.title
+    
