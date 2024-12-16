@@ -35,7 +35,6 @@ class box(models.Model):
 class standard(models.Model):
     title = models.CharField(max_length=250)
     slug = models.SlugField(max_length=150)
-    box = models.ForeignKey(box, on_delete=models.CASCADE)
     created_on = models.DateTimeField(auto_now_add=True)
     
     # phương thức có thể gọi trên model, hiển thị dữ liệu title
@@ -57,16 +56,24 @@ class criterion(models.Model):
 #Model Minh chứng 
 class attest(models.Model):
     id = models.CharField(max_length=20, primary_key=True)
+    # add 2 fields
+    attest_id = models.CharField(max_length=100)
+    attest_stt = models.CharField(max_length=100)
+    
     title = models.CharField(max_length=250)
     body = models.TextField()
     performer = models.TextField()
-    note = models.TextField()
+    note = models.TextField(null=True, blank=True)
     slug = models.SlugField(max_length=150)
     image = models.ImageField(default='fallback.jpeg', blank=True)
     criterion = models.ForeignKey(criterion, on_delete=models.CASCADE)
+    box = models.ForeignKey(box, on_delete=models.CASCADE)
     created_on = models.DateTimeField(auto_now_add=True)
     
     # phương thức có thể gọi trên model, hiển thị dữ liệu title
     def __str__(self):
         return self.title
-    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['attest_id', 'attest_stt'], name='unique_attest_id_attest_stt')
+        ]
