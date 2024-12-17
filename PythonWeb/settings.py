@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'CTDT',
     'users',
+    'django_admin_listfilter_dropdown',
 ]
 
 MIDDLEWARE = [

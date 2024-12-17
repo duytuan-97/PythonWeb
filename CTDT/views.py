@@ -89,4 +89,5 @@ def upload_file(request):
     else:
         form = FileUploadForm()
 
-    return render(request, 'Pages/upload.html', {'form': form})
+    # return render(request, 'Pages/upload.html', {'form': form})
+    return render(request, 'admin/test/test.html', {'form': form})
