@@ -4,6 +4,13 @@ from django.shortcuts import render
 from django.http import HttpResponse, HttpResponseRedirect
 
 from CTDT.models import Post
+from CTDT.models import box, standard, criterion, attest
+
+from docx import Document
+
+from django.utils.text import slugify
+
+
 # Create your views here.
 def index(request):
 #    response = HttpResponse()
@@ -91,3 +98,183 @@ def upload_file(request):
 
     # return render(request, 'Pages/upload.html', {'form': form})
     return render(request, 'admin/test/test.html', {'form': form})
+
+def import_word(request):
+    if request.method == 'POST':
+        word_file = request.FILES['word_file']
+        try:
+            document = Document(word_file)
+            tables = document.tables # Lấy tất cả các bảng trong file
+
+            if tables: # Kiểm tra xem có bảng nào không
+                table = tables[0] # Lấy bảng đầu tiên (nếu có nhiều bảng)
+                # Bỏ qua hàng tiêu đề (hàng đầu tiên)
+                for row in table.rows[2:]: # bắt đầu từ hàng thứ 2
+                    cells = row.cells
+                    try:
+                        ma_minh_chung = cells[2].text.strip() # Cột "Mã minh chứng" (index 2)
+                        title = cells[3].text.strip() # Cột "Tên minh chứng" (index 3)
+                        # ... Lấy dữ liệu từ các cột khác tương tự
+                        so_ngay_ban_hanh = cells[4].text.strip()
+                        noi_ban_hanh = cells[5].text.strip()
+                        ghi_chu = cells[6].text.strip()
+
+                        if not ma_minh_chung: # kiểm tra nếu mã minh chứng bị trống thì bỏ qua hàng này
+                            continue
+
+                        box_id_str, standard_str, criterion_str, attest_str = ma_minh_chung.split('.')
+                        box_id = int(box_id_str[1:])
+
+                        # Kiểm tra Box
+                        try:
+                            box1 = box.objects.get(pk=box_id)
+                        except box1.DoesNotExist:
+                            messages.error(request, f"Box H{box_id} không tồn tại.")
+                            continue
+
+                        # Kiểm tra Standard (cần xử lý thêm để lấy Standard code từ Tiêu chí)
+                        try:
+                            tieu_chi_text = cells[0].text.strip()
+                            standard_str = tieu_chi_text.split('.')[0].split(' ')[-1] # lấy số tiêu chuẩn từ cột tiêu chí
+                            # standard = standard.objects.get(code=standard_str)
+                            standard1 = standard.objects.get(id=int(standard_str))
+                            
+                        except standard.DoesNotExist:
+                            messages.error(request, f"Tiêu chuẩn {standard_str} không tồn tại.")
+                            continue
+                        except:
+                            messages.error(request, f"Lỗi xử lý cột tiêu chí")
+                            continue
+
+                        # Kiểm tra Criterion
+                        try:
+                            criterion1 = criterion.objects.get(pk=criterion_str)
+                        except criterion1.DoesNotExist:
+                            messages.error(request, f"Tiêu chí {criterion_str} không tồn tại.")
+                            continue
+                        
+                        # Kiểm tra Minh chứng (Attest)
+                        ma_minh_chung = ma_minh_chung.strip()
+                        so_ngay_ban_hanh = so_ngay_ban_hanh.strip()
+                        if attest.objects.filter(attest_id=ma_minh_chung, body=so_ngay_ban_hanh).exists():
+                            messages.warning(request, f"Minh chứng {ma_minh_chung} đã tồn tại.")
+                            continue
+
+                        # Tạo và lưu Minh chứng mới
+                        attest1 = attest(
+                            attest_id=ma_minh_chung,
+                            title=title,
+                            box=box1,
+                            criterion=criterion1,
+                            body=so_ngay_ban_hanh,
+                            performer=noi_ban_hanh,
+                            note = ghi_chu,
+                            slug=slugify(ma_minh_chung),  # Tạo slug từ attest_id
+                            image='fallback.jpeg',  # Sử dụng hình mặc định nếu không có hình được cung cấp
+                            # ... Các trường khác
+                        )
+                        attest1.save()
+                        messages.success(request, f"Đã import thành công minh chứng {ma_minh_chung}.")
+
+                    except ValueError as ve:
+                        messages.error(request, f"Lỗi định dạng dữ liệu trong bảng: {ve}")
+                    except IndexError as ie:
+                        messages.error(request, f"Lỗi thiếu cột trong bảng: {ie}. Kiểm tra cấu trúc bảng")
+                    except Exception as e:
+                        messages.error(request, f"Lỗi không xác định khi import minh chứng: {e}")
+
+            else:
+                messages.error(request, "Không tìm thấy bảng nào trong file DOCX.")
+
+        except Exception as e:
+            messages.error(request, f"Lỗi khi đọc file DOCX: {e}")
+    # else:
+    #     form = FileUploadForm()
+    return render(request, 'admin/import_word.html')
+
+# def import_word(request):
+#     if request.method == 'POST':
+#         docx_file = request.FILES['docx_file']
+#         try:
+#             document = Document(docx_file)
+#             tables = document.tables # Lấy tất cả các bảng trong file
+
+#             if tables: # Kiểm tra xem có bảng nào không
+#                 table = tables[0] # Lấy bảng đầu tiên (nếu có nhiều bảng)
+#                 # Bỏ qua hàng tiêu đề (hàng đầu tiên)
+#                 for row in table.rows[1:]: # bắt đầu từ hàng thứ 2
+#                     cells = row.cells
+#                     try:
+#                         ma_minh_chung = cells[2].text.strip() # Cột "Mã minh chứng" (index 2)
+#                         title = cells[3].text.strip() # Cột "Tên minh chứng" (index 3)
+#                         # ... Lấy dữ liệu từ các cột khác tương tự
+#                         so_ngay_ban_hanh = cells[4].text.strip()
+#                         noi_ban_hanh = cells[5].text.strip()
+#                         ghi_chu = cells[6].text.strip()
+
+#                         if not ma_minh_chung: # kiểm tra nếu mã minh chứng bị trống thì bỏ qua hàng này
+#                             continue
+
+#                         box_id_str, standard_str, criterion_str, attest_str = ma_minh_chung.split('.')
+#                         box_id = int(box_id_str[1:])
+
+#                         # Kiểm tra Box
+#                         try:
+#                             box = box.objects.get(pk=box_id)
+#                         except box.DoesNotExist:
+#                             messages.error(request, f"Box H{box_id} không tồn tại.")
+#                             continue
+
+#                         # Kiểm tra Standard (cần xử lý thêm để lấy Standard code từ Tiêu chí)
+#                         try:
+#                             tieu_chi_text = cells[0].text.strip()
+#                             standard_str = tieu_chi_text.split('.')[0].split(' ')[-1] # lấy số tiêu chuẩn từ cột tiêu chí
+#                             standard = standard.objects.get(code=standard_str)
+#                         except standard.DoesNotExist:
+#                             messages.error(request, f"Tiêu chuẩn {standard_str} không tồn tại.")
+#                             continue
+#                         except:
+#                             messages.error(request, f"Lỗi xử lý cột tiêu chí")
+#                             continue
+
+#                         # Kiểm tra Criterion
+#                         try:
+#                             criterion = criterion.objects.get(code=criterion_str)
+#                         except criterion.DoesNotExist:
+#                             messages.error(request, f"Tiêu chí {criterion_str} không tồn tại.")
+#                             continue
+                        
+#                         # Kiểm tra Minh chứng (Attest)
+#                         if attest.objects.filter(attest_id=ma_minh_chung).exists():
+#                             messages.warning(request, f"Minh chứng {ma_minh_chung} đã tồn tại.")
+#                             continue
+
+#                         # Tạo và lưu Minh chứng mới
+#                         attest = attest(
+#                             attest_id=ma_minh_chung,
+#                             title=title,
+#                             box=box,
+#                             criterion=criterion,
+#                             attest_stt=attest_str,
+#                             body=so_ngay_ban_hanh,
+#                             performer=noi_ban_hanh,
+#                             note = ghi_chu
+#                             # ... Các trường khác
+#                         )
+#                         attest.save()
+#                         messages.success(request, f"Đã import thành công minh chứng {ma_minh_chung}.")
+
+#                     except ValueError as ve:
+#                         messages.error(request, f"Lỗi định dạng dữ liệu trong bảng: {ve}")
+#                     except IndexError as ie:
+#                         messages.error(request, f"Lỗi thiếu cột trong bảng: {ie}. Kiểm tra cấu trúc bảng")
+#                     except Exception as e:
+#                         messages.error(request, f"Lỗi không xác định khi import minh chứng: {e}")
+
+#             else:
+#                 messages.error(request, "Không tìm thấy bảng nào trong file DOCX.")
+
+#         except Exception as e:
+#             messages.error(request, f"Lỗi khi đọc file DOCX: {e}")
+
+#     return render(request, 'your_template.html')
