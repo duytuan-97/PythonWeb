@@ -23,6 +23,8 @@ from CTDT import views
 urlpatterns = [
     
     # url(r'^admin/preferences/$', TemplateView.as_view(template_name='admin/preferences/preferences.html')),
+    
+    path('admin/CTDT/import_word', views.import_word, name='import_word'),
     path('admin/test', views.upload_file, name='upload_file'),
     # path('admin/test', TemplateView.as_view(template_name='admin/test/test.html')),
     path('admin/', admin.site.urls),
