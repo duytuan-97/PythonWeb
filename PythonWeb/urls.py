@@ -17,13 +17,28 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+from django.views.generic import TemplateView
+from CTDT import views
 
 urlpatterns = [
+    
+    # url(r'^admin/preferences/$', TemplateView.as_view(template_name='admin/preferences/preferences.html')),
+    
+    path('admin/CTDT/import_word', views.import_word, name='import_word'),
+    path('admin/test', views.upload_file, name='upload_file'),
+    # path('admin/test', TemplateView.as_view(template_name='admin/test/test.html')),
     path('admin/', admin.site.urls),
     path('', include('CTDT.urls')),
     path('CTDT/', include('CTDT.urls')),
     path('users/', include('users.urls')),
+    
 ]
+
+#code đổi titles trang admin
+admin.site.site_header = "Django administration 123"
+admin.site.site_title = "Browser Title"
+admin.site.index_title = "Quản lý chương trình đào tạo"
+
 # code thiết lập đường dẫn media
 from django.conf.urls.static import static
 from django.conf import settings

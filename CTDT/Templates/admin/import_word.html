@@ -1,0 +1,12 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<h1>Nhập File Word</h1>
+<form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    <p>
+        <label for="word_file">Chọn file Word:</label>
+        <input type="file" name="word_file" id="word_file" accept=".docx">
+    </p>
+    <button type="submit" class="button">Tải lên</button>
+</form>
+{% endblock %}
