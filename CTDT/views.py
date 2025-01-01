@@ -109,9 +109,10 @@ def import_word(request):
             if tables: # Kiểm tra xem có bảng nào không
                 table = tables[0] # Lấy bảng đầu tiên (nếu có nhiều bảng)
                 # Bỏ qua hàng tiêu đề (hàng đầu tiên)
-                for row in table.rows[2:]: # bắt đầu từ hàng thứ 2
+                for row in table.rows[1:]: # bắt đầu từ hàng thứ 2
                     cells = row.cells
                     try:
+                        stt = 1
                         ma_minh_chung = cells[2].text.strip() # Cột "Mã minh chứng" (index 2)
                         title = cells[3].text.strip() # Cột "Tên minh chứng" (index 3)
                         # ... Lấy dữ liệu từ các cột khác tương tự
@@ -121,7 +122,9 @@ def import_word(request):
 
                         if not ma_minh_chung: # kiểm tra nếu mã minh chứng bị trống thì bỏ qua hàng này
                             continue
-
+                        if cells[2].text.strip() == cells[3].text.strip(): # kiểm tra nếu mã minh chứng bị trống thì bỏ qua hàng này
+                            messages.warning(request, f"{ma_minh_chung}")
+                            continue
                         box_id_str, standard_str, criterion_str, attest_str = ma_minh_chung.split('.')
                         box_id = int(box_id_str[1:])
 
@@ -159,6 +162,11 @@ def import_word(request):
                         if attest.objects.filter(attest_id=ma_minh_chung, body=so_ngay_ban_hanh).exists():
                             messages.warning(request, f"Minh chứng {ma_minh_chung} đã tồn tại.")
                             continue
+                        if attest.objects.filter(attest_id=ma_minh_chung).exists():
+                            stt += 1
+                        else:
+                            stt = 1
+
 
                         # Tạo và lưu Minh chứng mới
                         attest1 = attest(
@@ -169,7 +177,9 @@ def import_word(request):
                             body=so_ngay_ban_hanh,
                             performer=noi_ban_hanh,
                             note = ghi_chu,
-                            slug=slugify(ma_minh_chung),  # Tạo slug từ attest_id
+                            attest_stt = stt,
+                            slug=slugify(ma_minh_chung)+ "_" + str(stt),  # Tạo slug từ attest_id
+                            # slug=slugify(ma_minh_chung),  # Tạo slug từ attest_id
                             image='fallback.jpeg',  # Sử dụng hình mặc định nếu không có hình được cung cấp
                             # ... Các trường khác
                         )

@@ -8,6 +8,7 @@ from .models import box
 from .models import standard
 from .models import criterion
 from .models import attest
+from .models import common_attest
 
 from django_admin_listfilter_dropdown.filters import DropdownFilter, RelatedDropdownFilter, ChoiceDropdownFilter
 
@@ -268,3 +269,29 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         response['Content-Disposition'] = 'attachment; filename="DanhMucMinhChung.docx"'
         document.save(response)
         return response
+
+@admin.register(common_attest)
+class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+    list_display = ('common_attest_id_name','common_attest_stt', 'title', 'body', 'performer')
+    list_display_links = ('title',)
+    # list_filter = (
+    #     #'criterion',
+    #     # for ordinary fields
+    #     #('criterion', DropdownFilter),
+    #     # for choice fields
+    #     #('criterion', ChoiceDropdownFilter),
+    #     # for related fields
+    #     ('criterion', RelatedDropdownFilter),
+    # )
+    
+    ordering = ( 'common_attest_id','common_attest_stt')
+    search_fields = ('title', 'performer')
+    prepopulated_fields = {'slug': ['common_attest_id','common_attest_stt']}
+    class Media:
+        js = ('../static/js/custom_admin.js',)  # Đường dẫn file JS
+    
+    @admin.display(description="Mã minh chứng")
+    def common_attest_id_name(self, obj):
+        if self.model.objects.filter(common_attest_id=obj.common_attest_id, pk__lt=obj.pk).exists():
+            return ""
+        return f"{obj.common_attest_id}".upper()
