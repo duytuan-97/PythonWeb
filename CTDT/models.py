@@ -50,6 +50,7 @@ class standard(models.Model):
 
 #Model Tiêu Chí 
 class criterion(models.Model):
+    id = models.CharField(max_length=20, primary_key=True)
     title = models.CharField(max_length=250, verbose_name="Tiêu chí")
     slug = models.SlugField(max_length=150)
     standard = models.ForeignKey(standard, verbose_name="Tiêu chuẩn", on_delete=models.CASCADE)
@@ -63,7 +64,7 @@ class criterion(models.Model):
         verbose_name_plural = "Các tiêu chí"
     
 class common_attest(models.Model):
-    common_attest_id = models.CharField(max_length=100)
+    common_attest_id = models.CharField(max_length=100, primary_key=True)
     common_attest_stt = models.CharField(max_length=10, verbose_name="STT")
     
     title = models.CharField(max_length=250, verbose_name="Minh chứng")
@@ -72,7 +73,7 @@ class common_attest(models.Model):
     note = models.TextField(null=True, blank=True, verbose_name="Ghi chú")
     slug = models.SlugField(max_length=150)
     image = models.ImageField(default='fallback.jpeg', blank=True, verbose_name="Hình")
-    # criterion = models.ForeignKey(criterion, on_delete=models.CASCADE, verbose_name="Tiêu chí")
+    criterion = models.ForeignKey(criterion, on_delete=models.CASCADE, verbose_name="Tiêu chí")
     box = models.ForeignKey(box, on_delete=models.CASCADE, verbose_name="Hộp")
     created_on = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
     
@@ -104,8 +105,24 @@ class attest(models.Model):
     
     common_attest = models.ForeignKey(common_attest, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Minh chứng dùng chung")
     is_common = models.BooleanField(default=False, verbose_name="Là minh chứng dùng chung")
-
     
+    def save(self, *args, **kwargs):
+        # Nếu có liên kết với common_attest, sao chép dữ liệu từ đó
+        if self.common_attest:
+            common = self.common_attest
+            self.attest_id = common.common_attest_id
+            self.attest_stt = common.common_attest_stt
+            self.title = common.title
+            self.body = common.body
+            self.performer = common.performer
+            self.note = common.note
+            self.slug = common.slug
+            self.image = common.image
+            self.criterion = common.criterion
+            self.box = common.box
+            self.is_common = True
+
+        super().save(*args, **kwargs)
     
     # phương thức có thể gọi trên model, hiển thị dữ liệu title
     def __str__(self):

@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 
 # from CTDT import forms
@@ -103,10 +104,26 @@ class criterionAdmin(admin.ModelAdmin):
 
     view_attests_link.short_description = "Minh chứng"
 
+class AttestForm(forms.ModelForm):
+    class Meta:
+        model = attest
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        common_attest = cleaned_data.get("common_attest")
+
+        if common_attest:
+            # Sao chép giá trị từ common_attest
+            cleaned_data["title"] = common_attest.title
+            cleaned_data["body"] = common_attest.body
+            # Thêm các trường khác nếu cần
+        return cleaned_data
 #admin.site.register(attest)
 @admin.register(attest)
 # class attestAdmin(admin.ModelAdmin):
 class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+    form = AttestForm
     list_display = ('criterion_name', 'attest_id_name','attest_stt', 'title', 'body', 'performer')
     list_display_links = ('title',)
     list_filter = (
@@ -122,9 +139,70 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     ordering = ( 'attest_id','attest_stt')
     search_fields = ('title', 'performer')
     prepopulated_fields = {'slug': ['attest_id','attest_stt']}
+    # def get_readonly_fields(self, request, obj=None):
+    #     """
+    #     Làm cho tất cả các trường readonly nếu đây là minh chứng dùng chung.
+    #     """
+    #     if obj and obj.common_attest is not None:  # Nếu có liên kết với common_attest
+    #         # Lấy danh sách các trường có trong form
+    #         form_fields = [field.name for field in self.model._meta.fields]
+    #         # Loại bỏ các trường không được quản lý bởi form
+    #         readonly_fields = [field for field in form_fields if field in self.form.declared_fields]
+    #         return readonly_fields
+    #     return super().get_readonly_fields(request, obj)
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # if obj:
+        #     if obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+        #         for field_name in form.base_fields:
+        #             form.base_fields[field_name].disabled = True  # Vô hiệu hóa trường
+        # else:
+        #     form.base_fields['is_common'].disabled = True
+        if obj:
+            if obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+                for field_name in form.base_fields:
+                    form.base_fields[field_name].disabled = True  # Vô hiệu hóa trường
+            else:
+                form.base_fields['common_attest'].disabled = True
+                form.base_fields['is_common'].disabled = True
+        # else:
+        #     form.base_fields['is_common'].disabled = True
+        return form
+    
+    def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
+        if obj and obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+            context['show_save'] = False  # Ẩn nút lưu
+            context['show_save_and_continue'] = False
+            context['show_save_and_add_another'] = False
+        else:
+            context['show_save'] = True
+            context['show_save_and_continue'] = True
+            context['show_save_and_add_another'] = True
+        return super().render_change_form(request, context, add, change, form_url, obj)
+    
+    def save_model(self, request, obj, form, change):
+        if not change and obj.common_attest : 
+            # obj.is_common = bool(obj.common_attest)  # Gán True nếu common_attest có giá trị
+            common_attest_data = obj.common_attest
+            obj.attest_id = common_attest_data.common_attest_id
+            obj.attest_stt = common_attest_data.common_attest_stt
+            obj.title = common_attest_data.title
+            obj.body = common_attest_data.body
+            obj.performer = common_attest_data.performer
+            obj.note = "DC"
+            obj.slug = common_attest_data.slug
+            obj.image = common_attest_data.image
+            # obj.criterion = common_attest_data.criterion
+            obj.box = common_attest_data.box
+            obj.is_common = True
+        else:
+            obj.is_common = False
+        super().save_model(request, obj, form, change)
     class Media:
         js = ('../static/js/custom_admin.js',)  # Đường dẫn file JS
-    
+        css = {
+            'all': ('../static/css/custom_admin.css',)
+        }
     @admin.display(description="Tiêu chí")
     def criterion_name(self, obj):
         if self.model.objects.filter(criterion=obj.criterion, pk__lt=obj.pk).exists():
@@ -290,6 +368,26 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     class Media:
         js = ('../static/js/custom_admin.js',)  # Đường dẫn file JS
     
+    def save_model(self, request, obj, form, change):
+        """
+        Ghi đè phương thức save_model để cập nhật tất cả các attest liên kết với common_attest.
+        """
+        super().save_model(request, obj, form, change)
+
+        # Tìm tất cả các attest liên quan tới common_attest hiện tại
+        related_attests = attest.objects.filter(common_attest=obj)
+
+        # Cập nhật các trường trong attest liên quan nếu cần
+        for attest_instance in related_attests:
+            attest_instance.title = obj.title  # Đồng bộ trường `title`
+            attest_instance.body = obj.body  
+            attest_instance.performer = obj.performer  
+            attest_instance.note = obj.note  
+            attest_instance.slug = obj.slug  
+            attest_instance.image = obj.image  
+            attest_instance.criterion = obj.criterion  
+            attest_instance.box = obj.box  
+            attest_instance.save()  # Lưu thay đổi cho từng instance
     @admin.display(description="Mã minh chứng")
     def common_attest_id_name(self, obj):
         if self.model.objects.filter(common_attest_id=obj.common_attest_id, pk__lt=obj.pk).exists():

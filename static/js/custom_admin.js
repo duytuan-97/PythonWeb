@@ -22,6 +22,7 @@
 // });
 
 document.addEventListener('DOMContentLoaded', function () {
+    console.log("Field not found.............................................................................");
     const rows = document.querySelectorAll('tbody tr'); // Lấy tất cả các hàng trong bảng
     const colorMap = {}; // Lưu thông tin về mã minh chứng và màu tương ứng
     let currentColorIndex = 0;
@@ -110,3 +111,115 @@ document.addEventListener("DOMContentLoaded", function () {
 //         }
 //     });
 // });
+
+
+//khi thêm minh chứng dùng chung
+document.addEventListener("DOMContentLoaded", function () {
+    const commonAttestField = document.querySelector("#id_common_attest");
+    // commonAttestField.value = "";
+    console.log(commonAttestField);
+
+    const fieldsToToggle = [
+        "#id_attest_id",
+        "#id_attest_stt",
+        "#id_title",
+        "#id_body",
+        "#id_performer",
+        "#id_slug",
+        "#id_image",
+        "#id_box",
+    ];
+    const attest_idField = document.querySelector("#id_attest_id");
+    const attest_sttField = document.querySelector("#id_attest_stt");
+    const performerField = document.querySelector("#id_performer");
+    const slugField = document.querySelector("#id_slug");
+    const NoteField = document.querySelector("#id_note");
+    const boxField = document.querySelector("#id_box");
+
+    const titleField = document.querySelector("#id_title");
+    const bodyField = document.querySelector("#id_body");
+    const is_commonField = document.querySelector("#id_is_common");
+
+    const currentURL = window.location.href;
+    console.log(currentURL);
+
+    if (currentURL.includes('/add/')) {
+        const common_Field = document.querySelector(".field-is_common");
+        common_Field.style.display = "none";//ẩn trường
+    }
+    
+
+    function toggleFields(disable) {
+        fieldsToToggle.forEach((selector) => {
+            const field = document.querySelector(selector);
+            
+            if (field) {
+                // field.readOnly  = true; // Bật/tắt trường "#id_note","#id_criterion",
+                if (disable && commonAttestField) {
+                    field.readOnly  = false; // tắt trường "#id_note","#id_criterion",
+                    // if (commonAttestField) {
+                    commonAttestField.addEventListener("change", async function () {
+                    const commonAttestId = commonAttestField.value;
+                        if (commonAttestId) {
+                            // Gửi yêu cầu lấy dữ liệu từ server
+                            const response = await fetch(`/get_common_attest_data/${commonAttestId}/`);
+                            const data = await response.json();
+                            console.log("Data:..............................");
+                            // console.log(data);
+                            console.log(data);
+                            console.log(data.image);
+
+                            if (response.ok) {
+                                field.readOnly  = true; // Bật/tắt trường "#id_note","#id_criterion",
+                                // Điền dữ liệu vào các trường
+                                attest_idField.value = data.common_attest_id || "";
+                                attest_sttField.value = data.common_attest_stt || "";
+                                performerField.value = data.performer || "";
+                                slugField.value = data.slug || "";
+                                // imageField.value = data.image || "";
+                                boxField.value = data.box || "";
+                                titleField.value = data.title || "";
+                                bodyField.value = data.body || "";
+                                NoteField.value = "DC" || "";
+                                is_commonField.value = true || false;
+                                    
+
+                            } else {
+                                console.error("Error fetching data:", data.message);
+                            }
+                        } else {
+                            // Xóa dữ liệu nếu không chọn
+                            // titleField.value = "";
+                            // bodyField.value = "";
+                            NoteField.value = "";
+                            field.value = ""; // Xóa giá trị nếu disable
+                            is_commonField.value = false;
+                        }
+                    });
+                // }
+                }else{
+                    field.readOnly  = false; // Bật/tắt trường "#id_note","#id_criterion",
+                }
+            }
+            // else{
+            //     field.readOnly  = false;
+            // }
+        });
+    }
+
+    // Lắng nghe sự kiện thay đổi trên trường common_attest
+    if (commonAttestField) {
+        console.log("Tìm thấy phần tử select!");
+        commonAttestField.addEventListener("change", function () {
+            if (commonAttestField.value) {
+                toggleFields(true); // Vô hiệu hoá các trường
+            } else {
+                toggleFields(false);
+            }
+        });
+        
+    }
+    toggleFields(true); 
+});
+//ẩn trường bắt buộc điền khi thêm minh chứn mới, đã ẩn được các trường khi chọn minh chứng dùng chung, 
+// tiếp tục xử lý thêm các trường dữ liệu trống hoặc cập nhật dữ liệu từ minh chứng dùng chung vào các trường để thêm
