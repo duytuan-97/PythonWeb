@@ -14,4 +14,6 @@ urlpatterns = [
    # path('upload/', views.upload_file, name='upload_file'),
    path('', views.upload_file, name='upload_file'),
    # path('', views.upload_file, name='upload_file'),
+   
+   path("get_common_attest_data/<str:pk>/", views.get_common_attest_data, name="get_common_attest_data"),
 ]

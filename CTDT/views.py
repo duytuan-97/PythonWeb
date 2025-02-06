@@ -4,11 +4,13 @@ from django.shortcuts import render
 from django.http import HttpResponse, HttpResponseRedirect
 
 from CTDT.models import Post
-from CTDT.models import box, standard, criterion, attest
+from CTDT.models import box, standard, criterion, attest, common_attest
 
 from docx import Document
 
 from django.utils.text import slugify
+
+import re
 
 
 # Create your views here.
@@ -101,6 +103,7 @@ def upload_file(request):
 
 def import_word(request):
     if request.method == 'POST':
+        
         word_file = request.FILES['word_file']
         try:
             document = Document(word_file)
@@ -108,25 +111,37 @@ def import_word(request):
 
             if tables: # Kiểm tra xem có bảng nào không
                 table = tables[0] # Lấy bảng đầu tiên (nếu có nhiều bảng)
+                stt = 1
                 # Bỏ qua hàng tiêu đề (hàng đầu tiên)
                 for row in table.rows[1:]: # bắt đầu từ hàng thứ 2
                     cells = row.cells
                     try:
-                        stt = 1
+                        
+                        tieu_chi = cells[0].text.strip() # Cột "Mã tiêu chí" (index 0)
                         ma_minh_chung = cells[2].text.strip() # Cột "Mã minh chứng" (index 2)
                         title = cells[3].text.strip() # Cột "Tên minh chứng" (index 3)
                         # ... Lấy dữ liệu từ các cột khác tương tự
                         so_ngay_ban_hanh = cells[4].text.strip()
                         noi_ban_hanh = cells[5].text.strip()
                         ghi_chu = cells[6].text.strip()
+                        is_common1 = False
+                        
+                        
+                        
+                        
 
                         if not ma_minh_chung: # kiểm tra nếu mã minh chứng bị trống thì bỏ qua hàng này
                             continue
-                        if cells[2].text.strip() == cells[3].text.strip(): # kiểm tra nếu mã minh chứng bị trống thì bỏ qua hàng này
+                        if cells[2].text.strip() == cells[3].text.strip():
                             messages.warning(request, f"{ma_minh_chung}")
                             continue
                         box_id_str, standard_str, criterion_str, attest_str = ma_minh_chung.split('.')
                         box_id = int(box_id_str[1:])
+
+                        match = re.search(r'\d+\.\d+', tieu_chi)  # Tìm mẫu số chấm số
+                        # ma_tieu_chi = match.group() if match else None
+                        ma_tieu_chi = match.group() if match else None
+                        
 
                         # Kiểm tra Box
                         try:
@@ -146,14 +161,14 @@ def import_word(request):
                             messages.error(request, f"Tiêu chuẩn {standard_str} không tồn tại.")
                             continue
                         except:
-                            messages.error(request, f"Lỗi xử lý cột tiêu chí")
+                            messages.error(request, f"Lỗi xử lý cột tiêu chuẩn")
                             continue
 
                         # Kiểm tra Criterion
                         try:
-                            criterion1 = criterion.objects.get(pk=criterion_str)
+                            criterion1 = criterion.objects.get(pk=ma_tieu_chi)
                         except criterion1.DoesNotExist:
-                            messages.error(request, f"Tiêu chí {criterion_str} không tồn tại.")
+                            messages.error(request, f"Tiêu chí {ma_tieu_chi} không tồn tại.")
                             continue
                         
                         # Kiểm tra Minh chứng (Attest)
@@ -167,7 +182,45 @@ def import_word(request):
                         else:
                             stt = 1
 
+                        
+                        # Kiểm tra minh chứng dùng chung
+                        match = re.search(r'\bDC\b', ghi_chu)
+                        common_evidence = None
+                        if not match:
+                            print("Ghi chú không chứa ký tự 'DC'.")
+                        else:
+                            print("Ghi chú có chứa ký tự 'DC'.")
+                            try:
+                                # Truy vấn bản ghi dùng chung
+                                common_evidence = common_attest.objects.get(common_attest_id=ma_minh_chung, body=so_ngay_ban_hanh)
+                                # common_attest_instance = common_attest.objects.get(common_attest_id=ma_minh_chung)
+                                print("Tìm thấy minh chứng dùng chung:", common_evidence)
+                            except common_attest.DoesNotExist:
+                                messages.error(request, f"Không tìm thấy minh chứng dùng chung với mã và số thứ tự đã cho.")
+                                return render(request, 'admin/import_word.html')
+                            
+                            # So sánh các trường chung
+                            minh_chung_check = {
+                                "common_attest_id": ma_minh_chung,
+                                # "common_attest_stt": stt,
+                                "title": title,
+                                "body": so_ngay_ban_hanh,
+                                "performer": noi_ban_hanh,
+                                # "note": ghi_chu,
+                            }
+                            differences = {
+                                field: (getattr(common_evidence, field), minh_chung_check[field])
+                                for field in minh_chung_check.keys()
+                                if hasattr(common_evidence, field) and getattr(common_evidence, field) != minh_chung_check[field]
+                            }
 
+                            if differences:
+                                messages.error(request, "Có sự khác biệt trong các trường sau:")
+                                for field, (common_value, word_value) in differences.items():
+                                    messages.error(f"{field}: Dùng chung = '{common_value}', Từ Word = '{word_value}'")
+                                return render(request, 'admin/import_word.html')
+                            is_common1 = True
+                        #Lỗi trùng dữ liệu với code : common_attest = common_evidence
                         # Tạo và lưu Minh chứng mới
                         attest1 = attest(
                             attest_id=ma_minh_chung,
@@ -181,7 +234,8 @@ def import_word(request):
                             slug=slugify(ma_minh_chung)+ "_" + str(stt),  # Tạo slug từ attest_id
                             # slug=slugify(ma_minh_chung),  # Tạo slug từ attest_id
                             image='fallback.jpeg',  # Sử dụng hình mặc định nếu không có hình được cung cấp
-                            # ... Các trường khác
+                            is_common = is_common1,
+                            common_attest = common_evidence
                         )
                         attest1.save()
                         messages.success(request, f"Đã import thành công minh chứng {ma_minh_chung}.")
@@ -288,3 +342,22 @@ def import_word(request):
 #             messages.error(request, f"Lỗi khi đọc file DOCX: {e}")
 
 #     return render(request, 'your_template.html')
+
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+
+def get_common_attest_data(request, pk):
+    common = get_object_or_404(common_attest, pk=pk)
+    # hhhh = common.slug
+    # h11 = hhhh.id
+    return JsonResponse({
+        "common_attest_id": common.common_attest_id,
+        "common_attest_stt": common.common_attest_stt,
+        "performer": common.performer,
+        "slug": common.slug,
+        # "image": common.image.name,
+        "box": common.box.id,
+        "title": common.title,
+        "body": common.body,
+        # Thêm các trường khác nếu cần
+    })
