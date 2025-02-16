@@ -13,6 +13,9 @@ from django.utils.text import slugify
 import re
 
 
+from .notifications import EmailNotification
+
+
 # Create your views here.
 def index(request):
 #    response = HttpResponse()
@@ -103,7 +106,7 @@ def upload_file(request):
 
 def import_word(request):
     if request.method == 'POST':
-        
+        list_attest = []
         word_file = request.FILES['word_file']
         try:
             document = Document(word_file)
@@ -112,6 +115,7 @@ def import_word(request):
             if tables: # Kiểm tra xem có bảng nào không
                 table = tables[0] # Lấy bảng đầu tiên (nếu có nhiều bảng)
                 stt = 1
+                
                 # Bỏ qua hàng tiêu đề (hàng đầu tiên)
                 for row in table.rows[1:]: # bắt đầu từ hàng thứ 2
                     cells = row.cells
@@ -125,9 +129,6 @@ def import_word(request):
                         noi_ban_hanh = cells[5].text.strip()
                         ghi_chu = cells[6].text.strip()
                         is_common1 = False
-                        
-                        
-                        
                         
 
                         if not ma_minh_chung: # kiểm tra nếu mã minh chứng bị trống thì bỏ qua hàng này
@@ -238,6 +239,10 @@ def import_word(request):
                             common_attest = common_evidence
                         )
                         attest1.save()
+                        print(attest1)
+                        list_attest.append(attest1)
+                        print("list_attest:   ")
+                        print(list_attest)
                         messages.success(request, f"Đã import thành công minh chứng {ma_minh_chung}.")
 
                     except ValueError as ve:
@@ -247,11 +252,13 @@ def import_word(request):
                     except Exception as e:
                         messages.error(request, f"Lỗi không xác định khi import minh chứng: {e}")
 
+                
+                EmailNotification.send_attest_email(request, list_attest, "Thêm mới minh chứng")
             else:
                 messages.error(request, "Không tìm thấy bảng nào trong file DOCX.")
 
         except Exception as e:
-            messages.error(request, f"Lỗi khi đọc file DOCX: {e}")
+            messages.error(request, f"error: {e}")
     # else:
     #     form = FileUploadForm()
     return render(request, 'admin/import_word.html')
@@ -361,3 +368,4 @@ def get_common_attest_data(request, pk):
         "body": common.body,
         # Thêm các trường khác nếu cần
     })
+    

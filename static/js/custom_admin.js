@@ -143,13 +143,54 @@ document.addEventListener("DOMContentLoaded", function () {
     const currentURL = window.location.href;
     console.log(currentURL);
 
-    if (currentURL.includes('/add/')) {
+    if (currentURL.includes('/attest/add/')) {
         const common_Field = document.querySelector(".field-is_common");
         common_Field.style.display = "none";//ẩn trường
     }
-    
+
+    //slug change
+    (function($) {
+        $(document).ready(function() {
+            function update_Slug() {
+                console.log("Đã chạy vào cập nhật slug");
+                setTimeout(function() { 
+                    let id_attest = $("#id_attest_id").val();
+                    let stt_attest = $("#id_attest_stt").val();
+                    let id_common_attest = $("#id_common_attest_id").val();
+                    let stt_common_attest = $("#id_common_attest_stt").val();
+                    let title_box = $("#id_title").val();
+                    if (id_attest && stt_attest) {
+                        $("#id_slug").val(getSlug(id_attest) + "-" + getSlug(stt_attest));
+                        console.log(getSlug(id_attest) + "-" + getSlug(stt_attest));
+                    }else if(id_common_attest && stt_common_attest){
+                        $("#id_slug").val(getSlug(id_common_attest) + "-" + getSlug(stt_common_attest));
+                        console.log(getSlug(id_common_attest) + "-" + getSlug(stt_common_attest));
+                    }else{
+                        let Title = $("#id_title").val();
+                        $("#id_slug").val(getSlug(Title));
+                    }
+                    if(currentURL.includes('/CTDT/box/')) $("#id_id").val(title_box)
+                }, 10);
+            }
+            
+            $("#id_attest_id, #id_attest_stt").on("keyup change", update_Slug);
+            $("#id_common_attest_id, #id_common_attest_stt").on("keyup change", update_Slug);
+            if (currentURL.includes('/CTDT/criterion/') || currentURL.includes('/CTDT/standard/')) {
+                $("#id_title").on("keyup change", update_Slug);
+
+                
+            }else if(currentURL.includes('/CTDT/box/')){ 
+                $("#id_title").on("keyup change", update_Slug);
+
+                $("#id_id").attr("readonly", "readonly");
+            }
+
+            $("#id_slug").attr("readonly", "readonly");
+        });
+    })(django.jQuery);
 
     function toggleFields(disable) {
+
         fieldsToToggle.forEach((selector) => {
             const field = document.querySelector(selector);
             
@@ -207,8 +248,61 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    if (currentURL.includes('/attest/add/') && !commonAttestField.value) {
+        (function($) {
+            $(document).ready(function() {
+        
+                function clearValidationErrors() {
+                    // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
+                    $(".errornote").remove();
+                    $(".errorlist").remove();  // Xóa danh sách lỗi
+                    $(".errors").removeClass("errors");  // Xóa class lỗi khỏi input
+                
+                    // 🔹 Xóa toàn bộ CSS lỗi của tất cả các input
+                    $("input, select, textarea").each(function () {
+                        $(this).removeAttr("style"); // Xóa toàn bộ style inline
+                        $(this).removeClass("error"); // Xóa class lỗi nếu có
+                    });
+                }
+                
+
+                function updateAttestID() {
+                    let id_box = $("#id_box").val();
+                    let id_criterion = $("#id_criterion").val();
+                    console.log("Tìm thấy phần tử id_box!", id_box);
+                    console.log("Tìm thấy phần tử id_criterion!", id_criterion);
+                    if (id_box && id_criterion) {
+                        $("#id_attest_id").val("H" + id_box + "." + id_criterion + ".");
+                        console.log("H" + id_box + "." + id_criterion );
+                    }
+                }
+    
+                function validateAttestID(event) {
+                    let attestIDField = $("#id_attest_id");
+                    let noteField = $("#id_note");
+                    let attestID = $("#id_attest_id").val();
+                    let note = $("#id_note").val();
+                    if (attestID.endsWith(".")) {
+                        alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+                        attestIDField.css("border", "2px solid red");  // 🔹 Tô viền đỏ
+                        event.preventDefault();  // Ngăn không cho lưu
+                    }else if (note.endsWith("DC")) {
+                        alert("Vui lòng hiệu chỉnh lại ghi chú !!!");
+                        noteField.css("border", "2px solid red");  // 🔹 Tô viền đỏ
+                        event.preventDefault();  // Ngăn không cho lưu
+                    }
+                    
+                }
+        
+                $("#id_box, #id_criterion").on("keyup change", updateAttestID);
+                $("input[type='submit']").on("click", validateAttestID);
+                $("#id_common_attest").on("keyup change", clearValidationErrors);
+            });
+        })(django.jQuery);
+    }
     // Lắng nghe sự kiện thay đổi trên trường common_attest
     if (commonAttestField) {
+
         console.log("Tìm thấy phần tử select!");
         commonAttestField.addEventListener("change", function () {
             if (commonAttestField.value) {
@@ -219,7 +313,56 @@ document.addEventListener("DOMContentLoaded", function () {
         });
         
     }
-    toggleFields(true); 
+
+    toggleFields(true);
+
+    if (currentURL.includes('/common_attest/add/')) {
+        (function($) {
+            $(document).ready(function() {
+        
+                function clearValidationErrors() {
+                    // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
+                    $(".errornote").remove();
+                    $(".errorlist").remove();  // Xóa danh sách lỗi
+                    $(".errors").removeClass("errors");  // Xóa class lỗi khỏi input
+                
+                    // 🔹 Xóa toàn bộ CSS lỗi của tất cả các input
+                    $("input, select, textarea").each(function () {
+                        $(this).removeAttr("style"); // Xóa toàn bộ style inline
+                        $(this).removeClass("error"); // Xóa class lỗi nếu có
+                    });
+                }
+                
+
+                function updateCommonAttestID() {
+                    let id_box = $("#id_box").val();
+                    let id_criterion = $("#id_criterion").val();
+                    // console.log("Tìm thấy phần tử id_box!", id_box);
+                    // console.log("Tìm thấy phần tử id_criterion!", id_criterion);
+                    if (id_box && id_criterion) {
+                        $("#id_common_attest_id").val("H" + id_box + "." + id_criterion + ".");
+                        console.log("H" + id_box + "." + id_criterion );
+                    }
+                }
+    
+                function validateCommonAttestID(event) {
+                    let common_attestID = $("#id_common_attest_id").val();
+                    if (common_attestID.endsWith(".")) {
+                        alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+                        event.preventDefault();  // Ngăn không cho lưu
+                    }
+                }
+        
+                $("#id_box, #id_criterion").on("keyup change", updateCommonAttestID);
+                $("input[type='submit']").on("click", validateCommonAttestID);
+                $("#id_box").on("keyup change", clearValidationErrors);
+                $("#id_criterion").on("keyup change", clearValidationErrors);
+            });
+        })(django.jQuery);
+    }
+
+    
+    
 });
-//ẩn trường bắt buộc điền khi thêm minh chứn mới, đã ẩn được các trường khi chọn minh chứng dùng chung, 
-// tiếp tục xử lý thêm các trường dữ liệu trống hoặc cập nhật dữ liệu từ minh chứng dùng chung vào các trường để thêm
+
+
