@@ -31,7 +31,18 @@ from django.utils.html import format_html
 
 from django.urls import path
 
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from .notifications import EmailNotification
+from django.contrib.admin.widgets import AdminTextInputWidget 
+
+from django.utils.text import slugify
+
+
 admin.site.register(Post)
+
+User = get_user_model()
 
 @admin.action(description="Mark selected stories as published")
 def make_published(modeladmin, request, queryset):
@@ -42,8 +53,28 @@ def make_published(modeladmin, request, queryset):
 @admin.register(box)
 class boxAdmin(admin.ModelAdmin): 
     search_fields = ('title',)
-    prepopulated_fields = {'slug': ['title']}
+    # prepopulated_fields = {'slug': ['title']}
 
+    class Media:
+        js = (['../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật hộp"
+        else :
+            action_type = "Thêm mới hộp"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_box_change', args=[obj.pk]))
+        # EmailNotification.send_box_email(request, [obj], action_type, admin_url)
+
+    def delete_model(self, request, obj):
+        # EmailNotification.send_box_email(request, [obj], "Xóa hộp", "Delete")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        # EmailNotification.send_box_email(request, queryset, "Xóa hộp", "Delete")
+        super().delete_queryset(request, queryset)
+        
 # tiêu chuẩn
 # admin.site.register(standard)
 @admin.register(standard)
@@ -51,7 +82,11 @@ class standardAdmin(admin.ModelAdmin):
     list_display = ('title','view_criterion_link',) 
     search_fields = ('title',)
     ordering = ('title',)
-    prepopulated_fields = {'slug': ['title']}
+    # prepopulated_fields = {'slug': ['title']}
+    
+    class Media:
+        js = (['../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
+        
     
     def view_criterion_link(self, obj):
         count = obj.criterion_set.count()
@@ -61,8 +96,28 @@ class standardAdmin(admin.ModelAdmin):
             + urlencode({"standard__id": f"{obj.id}"})
         )
         return format_html('<a href="{}">{} Tiêu chí</a>', url, count)
+    
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật tiêu chuẩn"
+            obj.slug = slugify(obj.title)  # Cập nhật lại slug từ title
+        else :
+            action_type = "Thêm mới tiêu chuẩn"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_standard_change', args=[obj.pk]))
+        super().save_model(request, obj, form, change)
+        # EmailNotification.send_standard_email(request, [obj], action_type, admin_url)
+
+    def delete_model(self, request, obj):
+        # EmailNotification.send_standard_email(request, [obj], "Xóa tiêu chuẩn", "Delete")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        # EmailNotification.send_standard_email(request, queryset, "Xóa tiêu chuẩn", "Delete")
+        super().delete_queryset(request, queryset)
 
     view_criterion_link.short_description = "Tiêu chí"
+    
     
 # tiêu chí
 #admin.site.register(criterion)
@@ -82,7 +137,7 @@ class criterionAdmin(admin.ModelAdmin):
     )
     
     class Media:
-        js = (['../static/js/custom_admin.js',])  # Đường dẫn file JS
+        js = (['https://code.jquery.com/jquery-3.6.0.min.js','../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
         
     search_fields = ('title',)
     prepopulated_fields = {'slug': ['title']}
@@ -101,6 +156,23 @@ class criterionAdmin(admin.ModelAdmin):
             + urlencode({"criterion__id": f"{obj.id}"})
         )
         return format_html('<a href="{}">{}</a>', url, count)
+    
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật tiêu chí"
+        else :
+            action_type = "Thêm mới tiêu chí"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_criterion_change', args=[obj.pk]))
+        # EmailNotification.send_criterion_email(request, [obj], action_type, admin_url)
+
+    def delete_model(self, request, obj):
+        # EmailNotification.send_criterion_email(request, [obj], "Xóa tiêu chí", "Delete")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        # EmailNotification.send_criterion_email(request, queryset, "Xóa tiêu chí", "Delete")
+        super().delete_queryset(request, queryset)
 
     view_attests_link.short_description = "Minh chứng"
 
@@ -138,7 +210,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     ordering = ( 'attest_id','attest_stt')
     search_fields = ('title', 'performer')
-    prepopulated_fields = {'slug': ['attest_id','attest_stt']}
+    # prepopulated_fields = {'slug': ['attest_id','attest_stt']}
+    
     # def get_readonly_fields(self, request, obj=None):
     #     """
     #     Làm cho tất cả các trường readonly nếu đây là minh chứng dùng chung.
@@ -180,7 +253,16 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             context['show_save_and_add_another'] = True
         return super().render_change_form(request, context, add, change, form_url, obj)
     
+    # Gửi log
+    
     def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật minh chứng"
+        else :
+            action_type = "Thêm mới minh chứng"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_attest_change', args=[obj.pk]))
+        
         if not change and obj.common_attest : 
             # obj.is_common = bool(obj.common_attest)  # Gán True nếu common_attest có giá trị
             common_attest_data = obj.common_attest
@@ -195,11 +277,31 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             # obj.criterion = common_attest_data.criterion
             obj.box = common_attest_data.box
             obj.is_common = True
+            
         else:
             obj.is_common = False
+        
+        # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
+        # EmailNotification.send_attest_email(request, [obj], action_type)
         super().save_model(request, obj, form, change)
+    
+    def delete_model(self, request, obj):
+        """ Gửi email khi xóa """
+        # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
+        # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """ Gửi email chứa danh sách attest bị xóa trước khi xóa """
+
+        # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
+        # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng")
+        
+        # Gọi phương thức mặc định để xóa các attest
+        super().delete_queryset(request, queryset)
+    
     class Media:
-        js = ('../static/js/custom_admin.js',)  # Đường dẫn file JS
+        js = ('../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js')  # Đường dẫn file JS
         css = {
             'all': ('../static/css/custom_admin.css',)
         }
@@ -364,19 +466,28 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     ordering = ( 'common_attest_id','common_attest_stt')
     search_fields = ('title', 'performer')
-    prepopulated_fields = {'slug': ['common_attest_id','common_attest_stt']}
+    # prepopulated_fields = {
+    #     'slug': ['common_attest_id','common_attest_stt'],
+    #     # 'common_attest_id':['box','criterion'],
+    # }
+    
     class Media:
-        js = ('../static/js/custom_admin.js',)  # Đường dẫn file JS
+        js = ('../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js')  # Đường dẫn file JS
     
     def save_model(self, request, obj, form, change):
         """
-        Ghi đè phương thức save_model để cập nhật tất cả các attest liên kết với common_attest.
+        Ghi đè save_model cập nhật tất cả các attest liên kết với common_attest.
         """
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật minh chứng dùng chung"
+        else :
+            action_type = "Thêm mới minh chứng dùng chung"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_common_attest_change', args=[obj.pk]))
+        
         super().save_model(request, obj, form, change)
-
         # Tìm tất cả các attest liên quan tới common_attest hiện tại
         related_attests = attest.objects.filter(common_attest=obj)
-
         # Cập nhật các trường trong attest liên quan nếu cần
         for attest_instance in related_attests:
             attest_instance.title = obj.title  # Đồng bộ trường `title`
@@ -388,8 +499,27 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             attest_instance.criterion = obj.criterion  
             attest_instance.box = obj.box  
             attest_instance.save()  # Lưu thay đổi cho từng instance
+        
+        # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
     @admin.display(description="Mã minh chứng")
+    
     def common_attest_id_name(self, obj):
         if self.model.objects.filter(common_attest_id=obj.common_attest_id, pk__lt=obj.pk).exists():
             return ""
         return f"{obj.common_attest_id}".upper()
+
+    def delete_model(self, request, obj):
+        """ Gửi email khi xóa """
+        # EmailNotification.send_common_attest_email(request, [obj], "Xóa minh chứng dùng chung", "Delete")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """ Gửi email chứa danh sách attest bị xóa trước khi xóa """
+        # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
+        # Gọi phương thức mặc định để xóa các attest
+        super().delete_queryset(request, queryset)
+
+# chưa cập nhật được slug , ẩn trường slug khi chỉnh sửa, thêm mới, cập nhật trường trong tiêu chí ==> xong
+
+# Không gửi mail cho ad khi thao tác với database, cần tạo mới 1 table lưu các thông tin chỉnh sửa của người dùng 
+# đến khi nào người dùng gửi thông báo cho admin thì sẽ lấy hết thông tin trong bảng đó gửi cho admin

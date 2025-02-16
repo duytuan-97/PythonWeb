@@ -27,6 +27,7 @@ class box(models.Model):
     slug = models.SlugField(max_length=150)
     location = models.CharField(max_length=250, verbose_name="Vị trí")
     created_on = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
+    updated_on = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
     
     # phương thức có thể gọi trên model, hiển thị dữ liệu title
     def __str__(self):
@@ -37,10 +38,11 @@ class box(models.Model):
 
 #Model Tiêu Chuẩn 
 class standard(models.Model):
+    id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=250, verbose_name="Tiêu chuẩn")
     slug = models.SlugField(max_length=150)
     created_on = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
-    
+    updated_on = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
     # phương thức có thể gọi trên model, hiển thị dữ liệu title
     def __str__(self):
         return self.title
@@ -55,6 +57,7 @@ class criterion(models.Model):
     slug = models.SlugField(max_length=150)
     standard = models.ForeignKey(standard, verbose_name="Tiêu chuẩn", on_delete=models.CASCADE)
     created_on = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
+    updated_on = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
     
     # phương thức có thể gọi trên model, hiển thị dữ liệu title
     def __str__(self):
@@ -76,6 +79,7 @@ class common_attest(models.Model):
     criterion = models.ForeignKey(criterion, on_delete=models.CASCADE, verbose_name="Tiêu chí")
     box = models.ForeignKey(box, on_delete=models.CASCADE, verbose_name="Hộp")
     created_on = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
+    updated_on = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
     
     def __str__(self):
         return self.title
@@ -102,6 +106,7 @@ class attest(models.Model):
     criterion = models.ForeignKey(criterion, on_delete=models.CASCADE, verbose_name="Tiêu chí")
     box = models.ForeignKey(box, on_delete=models.CASCADE, verbose_name="Hộp")
     created_on = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
+    updated_on = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
     
     common_attest = models.ForeignKey(common_attest, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Minh chứng dùng chung")
     is_common = models.BooleanField(default=False, verbose_name="Là minh chứng dùng chung")

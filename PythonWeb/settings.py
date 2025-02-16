@@ -116,13 +116,16 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
 # LANGUAGE_CODE = 'en-us'
+# Thay đổi ngôn ngữ chương trình
 LANGUAGE_CODE = 'vi'
 
-TIME_ZONE = 'UTC'
+# TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Ho_Chi_Minh'  # Đổi từ 'UTC' sang 'Asia/Ho_Chi_Minh'
 
 USE_I18N = True
 
-USE_TZ = True
+# USE_TZ = True
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
@@ -147,3 +150,11 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # code thiết lập đường dẫn media
 MEDIA_URL = 'media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Looking to send emails in production? Check out our Email API/SMTP product!
+EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
+EMAIL_HOST_USER = 'cac66c28e73675'
+EMAIL_HOST_PASSWORD = 'e17ba893121fbe'
+EMAIL_PORT = '2525'
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
