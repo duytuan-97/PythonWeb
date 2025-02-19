@@ -39,6 +39,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from .notifications import EmailNotification
+from .admin_convert.action_convert import ActionConvert
 from django.contrib.admin.widgets import AdminTextInputWidget 
 
 from django.utils.text import slugify
@@ -46,7 +47,7 @@ from django.template.loader import get_template
 from django.utils.translation import gettext as _
 
 from easy_thumbnails.files import get_thumbnailer
-
+from django.db import transaction
 
 admin.site.register(Post)
 
@@ -299,7 +300,7 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             obj.performer = common_attest_data.performer
             obj.note = "DC"
             obj.slug = common_attest_data.slug
-            obj.image = common_attest_data.image
+            # obj.image = common_attest_data.image
             # obj.criterion = common_attest_data.criterion
             obj.box = common_attest_data.box
             obj.is_common = True
@@ -543,11 +544,24 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             attest_instance.performer = obj.performer  
             attest_instance.note = obj.note  
             attest_instance.slug = obj.slug  
-            attest_instance.image = obj.image  
+            # attest_instance.image = obj.image  
+            
             attest_instance.criterion = obj.criterion  
             attest_instance.box = obj.box  
             attest_instance.save()  # Lưu thay đổi cho từng instance
+            
         
+        # def update_photos():
+        #     related_attests1 = attest.objects.filter(common_attest=obj)
+
+        #     for attest_instance1 in related_attests1:
+        #         attest_instance1.photos.all().delete()  # Xóa ảnh cũ
+                    
+        #         for photo_common1 in obj.photos.all():
+        #             PhotoAttest.objects.create(show=attest_instance1, photo=photo_common1.photo)    
+        # transaction.on_commit(update_photos(obj))  # Đảm bảo chạy sau khi commit database
+        
+        transaction.on_commit(lambda: ActionConvert.update_photos(obj))  # Đảm bảo chạy sau khi commit database
         # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
     @admin.display(description="Mã minh chứng")
     
@@ -559,6 +573,7 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     def delete_model(self, request, obj):
         """ Gửi email khi xóa """
         # EmailNotification.send_common_attest_email(request, [obj], "Xóa minh chứng dùng chung", "Delete")
+        ActionConvert.delete_attests(obj)  # xóa ảnh
         super().delete_model(request, obj)
     
     def delete_queryset(self, request, queryset):
@@ -566,6 +581,7 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         
         # delete photo
         for common_attest in queryset:
+            ActionConvert.delete_attests(common_attest)  # Xóa ảnh liên quan
             for photo_attest in common_attest.photos.all():  # Lấy ảnh liên kết
                 if photo_attest.photo:
                     try:
@@ -581,6 +597,7 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
         # Gọi phương thức mặc định để xóa các attest
         super().delete_queryset(request, queryset)
+        
 
 # chưa cập nhật được slug , ẩn trường slug khi chỉnh sửa, thêm mới, cập nhật trường trong tiêu chí ==> xong
 

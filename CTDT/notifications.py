@@ -189,7 +189,7 @@ class EmailNotification:
             message += f"Nội dung: {obj.body}\n"
             message += f"Nơi ban hành: {obj.performer}\n"
             message += f"Ghi chú: {obj.note}\n"
-            message += f"Hình : {obj.image}\n"
+            # message += f"Hình : {obj.image}\n"
             message += f"Tiêu chí: {obj.criterion}\n"
             message += f"Hộp: {obj.box}\n"
             message += f"Ngày cập nhật: {obj.updated_on}\n\n"
@@ -235,7 +235,6 @@ class EmailNotification:
                         <p><b>Nội dung:</b> {obj.body}</p>
                         <p><b>Nơi ban hành:</b> {obj.performer}</p>
                         <p><b>Ghi chú:</b> {obj.note}</p>
-                        <p><b>Hình:</b> {obj.image}</p>
                         <p><b>Tiêu chí:</b> {obj.criterion}</p>
                         <p><b>Hộp:</b> {obj.box}</p>
                         <p><b>Ngày cập nhật:</b> {obj.updated_on}</p>
@@ -289,7 +288,7 @@ class EmailNotification:
             message += f"Nội dung: {obj.body}\n"
             message += f"Nơi ban hành: {obj.performer}\n"
             message += f"Ghi chú: {obj.note}\n"
-            message += f"Hình : {obj.image}\n"
+            # message += f"Hình : {obj.image}\n"
             message += f"Tiêu chí: {obj.criterion}\n"
             message += f"Hộp: {obj.box}\n"
             message += f"Ngày cập nhật: {obj.updated_on}\n\n"
@@ -308,7 +307,6 @@ class EmailNotification:
                         <p><b>Nội dung:</b> {obj.body}</p>
                         <p><b>Nơi ban hành:</b> {obj.performer}</p>
                         <p><b>Ghi chú:</b> {obj.note}</p>
-                        <p><b>Hình:</b> {obj.image}</p>
                         <p><b>Tiêu chí:</b> {obj.criterion}</p>
                         <p><b>Hộp:</b> {obj.box}</p>
                         <p><b>Ngày cập nhật:</b> {obj.updated_on}</p>

@@ -145,6 +145,8 @@ class attest(models.Model):
     is_common = models.BooleanField(default=False, verbose_name="Là minh chứng dùng chung")
     
     def save(self, *args, **kwargs):
+        if not self.pk:  # Nếu chưa có primary key, lưu trước
+            super().save(*args, **kwargs)
         # Nếu có liên kết với common_attest, sao chép dữ liệu từ đó
         if self.common_attest:
             common = self.common_attest
@@ -159,6 +161,13 @@ class attest(models.Model):
             self.criterion = common.criterion
             self.box = common.box
             self.is_common = True
+            
+            # Xóa ảnh cũ trong PhotoAttest trước khi sao chép ảnh mới từ PhotoCommonAttest
+            self.photos.all().delete()
+
+            # Sao chép ảnh từ PhotoCommonAttest sang PhotoAttest
+            for photo_common in common.photos.all():
+                PhotoAttest.objects.create(show=self, photo=photo_common.photo)
 
         super().save(*args, **kwargs)
     

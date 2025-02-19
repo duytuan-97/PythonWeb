@@ -127,16 +127,15 @@ document.addEventListener("DOMContentLoaded", function () {
     console.log(commonAttestField);
 
     const fieldsToToggle = [
-        "#id_attest_id",
         "#id_attest_stt",
         "#id_title",
         "#id_body",
         "#id_performer",
         "#id_slug",
-        "#id_image",
         "#id_box",
     ];
     const attest_idField = document.querySelector("#id_attest_id");
+    const photos_idField = document.querySelector("#id_photos");
     const attest_sttField = document.querySelector("#id_attest_stt");
     const performerField = document.querySelector("#id_performer");
     const slugField = document.querySelector("#id_slug");
@@ -204,6 +203,11 @@ document.addEventListener("DOMContentLoaded", function () {
             if (field) {
                 // field.readOnly  = true; // Bật/tắt trường "#id_note","#id_criterion",
                 if (disable && commonAttestField) {
+                    //hiden input photo
+                    document.getElementById("id_photos").addEventListener("click", function(event) {
+                        event.preventDefault(); // Ngăn chặn hộp thoại file mở lên
+                    });
+                    
                     field.readOnly  = false; // tắt trường "#id_note","#id_criterion",
                     // if (commonAttestField) {
                     commonAttestField.addEventListener("change", async function () {
@@ -326,7 +330,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (currentURL.includes('/common_attest/add/')) {
         (function($) {
             $(document).ready(function() {
-        
+
+                alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
                 function clearValidationErrors() {
                     // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
                     $(".errornote").remove();
