@@ -21,6 +21,13 @@
 //     });
 // });
 
+document.addEventListener("DOMContentLoaded", function() {
+    let errorNote = document.querySelector(".errornote");
+    if (errorNote) {
+        errorNote.innerText = "Vui lòng sửa các lỗi bên dưới.";
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function () {
     console.log("Field not found.............................................................................");
     const rows = document.querySelectorAll('tbody tr'); // Lấy tất cả các hàng trong bảng

@@ -1,4 +1,7 @@
 from django.db import models
+import os
+from django.utils.translation import gettext_lazy as _
+from easy_thumbnails.files import get_thumbnailer
 
 
 #uploadfile
@@ -75,7 +78,7 @@ class common_attest(models.Model):
     performer = models.TextField(verbose_name="Nơi ban hành")
     note = models.TextField(null=True, blank=True, verbose_name="Ghi chú")
     slug = models.SlugField(max_length=150)
-    image = models.ImageField(default='fallback.jpeg', blank=True, verbose_name="Hình")
+    # image = models.ImageField(default='fallback.jpeg', blank=True, verbose_name="Hình")
     criterion = models.ForeignKey(criterion, on_delete=models.CASCADE, verbose_name="Tiêu chí")
     box = models.ForeignKey(box, on_delete=models.CASCADE, verbose_name="Hộp")
     created_on = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
@@ -89,6 +92,36 @@ class common_attest(models.Model):
         ]
         verbose_name = "Minh chứng dùng chung"
         verbose_name_plural = "Các minh chứng dùng chung"
+    
+    def delete(self, *args, **kwargs):
+        """Xóa tất cả ảnh liên quan trước khi xóa Attest"""
+        for photo in self.photos.all():
+            photo.delete()  # Gọi delete của Photo để xóa file ảnh
+        super().delete(*args, **kwargs)  # Xóa object Attest khỏi database
+
+class PhotoCommonAttest(models.Model):
+    show = models.ForeignKey(
+        common_attest, on_delete=models.CASCADE, related_name="photos"
+    )
+    photo = models.ImageField(default='fallback.jpeg', blank=True, verbose_name="Hình")
+    
+    def __str__(self):
+            return _("Đối tượng ảnh '{photo}'").format(photo=self.photo)
+    
+    verbose_name = "Hình ảnh"
+    verbose_name_plural = "Các hình ảnh"
+    
+    def delete(self, *args, **kwargs):
+        """Xóa file ảnh thực tế trước khi xóa object"""
+        if self.photo:
+            thumbnailURL = "./"+get_thumbnailer(self.photo)['small'].url
+            if os.path.isfile(thumbnailURL):
+                os.remove(thumbnailURL)  # Xóa file ảnh khỏi hệ thống
+            if os.path.isfile(self.photo.path):
+                os.remove(self.photo.path)  # Xóa file ảnh khỏi hệ thống
+                
+            
+        super().delete(*args, **kwargs)  # Xóa object khỏi database
 
 #Model Minh chứng 
 class attest(models.Model):
@@ -102,7 +135,7 @@ class attest(models.Model):
     performer = models.TextField(verbose_name="Nơi ban hành")
     note = models.TextField(null=True, blank=True, verbose_name="Ghi chú")
     slug = models.SlugField(max_length=150)
-    image = models.ImageField(default='fallback.jpeg', blank=True, verbose_name="Hình")
+    # image = models.ImageField(default='fallback.jpeg', blank=True, verbose_name="Hình")
     criterion = models.ForeignKey(criterion, on_delete=models.CASCADE, verbose_name="Tiêu chí")
     box = models.ForeignKey(box, on_delete=models.CASCADE, verbose_name="Hộp")
     created_on = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
@@ -122,7 +155,7 @@ class attest(models.Model):
             self.performer = common.performer
             self.note = common.note
             self.slug = common.slug
-            self.image = common.image
+            # self.image = common.image
             self.criterion = common.criterion
             self.box = common.box
             self.is_common = True
@@ -138,3 +171,33 @@ class attest(models.Model):
         ]
         verbose_name = "Minh chứng"
         verbose_name_plural = "Các minh chứng"
+    
+    def delete(self, *args, **kwargs):
+        """Xóa tất cả ảnh liên quan trước khi xóa Attest"""
+        for photo in self.photos.all():
+            photo.delete()  # Gọi delete của Photo để xóa file ảnh
+        super().delete(*args, **kwargs)  # Xóa object Attest khỏi database
+
+class PhotoAttest(models.Model):
+    show = models.ForeignKey(
+        attest, on_delete=models.CASCADE, related_name="photos"
+    )
+    photo = models.ImageField(default='fallback.jpeg', blank=True, verbose_name="Hình")
+    
+    def delete(self, *args, **kwargs):
+        """Xóa file ảnh thực tế trước khi xóa object"""
+        if self.photo:
+            thumbnailURL = "./"+get_thumbnailer(self.photo)['small'].url
+            if os.path.isfile(thumbnailURL):
+                os.remove(thumbnailURL)  # Xóa file ảnh khỏi hệ thống
+            if os.path.isfile(self.photo.path):
+                os.remove(self.photo.path)  # Xóa file ảnh khỏi hệ thống
+                
+            
+        super().delete(*args, **kwargs)  # Xóa object khỏi database
+    def __str__(self):
+            return _("Đối tượng ảnh '{photo}'").format(photo=self.photo)
+    
+    verbose_name = "Hình ảnh"
+    verbose_name_plural = "Các hình ảnh"
+# action xóa thông tin thì xóa hình
