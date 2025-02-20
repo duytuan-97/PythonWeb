@@ -1,9 +1,14 @@
+import os
+from django import forms
 from django.contrib import admin
+
+from CTDT.forms import AttestForm, CommonAttestForm
+
 
 # from CTDT import forms
 
 # Register your models here.
-from .models import Post
+from .models import PhotoCommonAttest, Post, PhotoAttest
 from .models import box
 from .models import standard
 from .models import criterion
@@ -30,7 +35,23 @@ from django.utils.html import format_html
 
 from django.urls import path
 
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from .notifications import EmailNotification
+from .admin_convert.action_convert import ActionConvert
+from django.contrib.admin.widgets import AdminTextInputWidget 
+
+from django.utils.text import slugify
+from django.template.loader import get_template
+from django.utils.translation import gettext as _
+
+from easy_thumbnails.files import get_thumbnailer
+from django.db import transaction
+
 admin.site.register(Post)
+
+User = get_user_model()
 
 @admin.action(description="Mark selected stories as published")
 def make_published(modeladmin, request, queryset):
@@ -41,8 +62,28 @@ def make_published(modeladmin, request, queryset):
 @admin.register(box)
 class boxAdmin(admin.ModelAdmin): 
     search_fields = ('title',)
-    prepopulated_fields = {'slug': ['title']}
+    # prepopulated_fields = {'slug': ['title']}
 
+    class Media:
+        js = (['../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật hộp"
+        else :
+            action_type = "Thêm mới hộp"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_box_change', args=[obj.pk]))
+        # EmailNotification.send_box_email(request, [obj], action_type, admin_url)
+
+    def delete_model(self, request, obj):
+        # EmailNotification.send_box_email(request, [obj], "Xóa hộp", "Delete")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        # EmailNotification.send_box_email(request, queryset, "Xóa hộp", "Delete")
+        super().delete_queryset(request, queryset)
+        
 # tiêu chuẩn
 # admin.site.register(standard)
 @admin.register(standard)
@@ -50,7 +91,11 @@ class standardAdmin(admin.ModelAdmin):
     list_display = ('title','view_criterion_link',) 
     search_fields = ('title',)
     ordering = ('title',)
-    prepopulated_fields = {'slug': ['title']}
+    # prepopulated_fields = {'slug': ['title']}
+    
+    class Media:
+        js = (['../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
+        
     
     def view_criterion_link(self, obj):
         count = obj.criterion_set.count()
@@ -60,8 +105,28 @@ class standardAdmin(admin.ModelAdmin):
             + urlencode({"standard__id": f"{obj.id}"})
         )
         return format_html('<a href="{}">{} Tiêu chí</a>', url, count)
+    
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật tiêu chuẩn"
+            obj.slug = slugify(obj.title)  # Cập nhật lại slug từ title
+        else :
+            action_type = "Thêm mới tiêu chuẩn"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_standard_change', args=[obj.pk]))
+        super().save_model(request, obj, form, change)
+        # EmailNotification.send_standard_email(request, [obj], action_type, admin_url)
+
+    def delete_model(self, request, obj):
+        # EmailNotification.send_standard_email(request, [obj], "Xóa tiêu chuẩn", "Delete")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        # EmailNotification.send_standard_email(request, queryset, "Xóa tiêu chuẩn", "Delete")
+        super().delete_queryset(request, queryset)
 
     view_criterion_link.short_description = "Tiêu chí"
+    
     
 # tiêu chí
 #admin.site.register(criterion)
@@ -81,7 +146,7 @@ class criterionAdmin(admin.ModelAdmin):
     )
     
     class Media:
-        js = (['../static/js/custom_admin.js',])  # Đường dẫn file JS
+        js = (['https://code.jquery.com/jquery-3.6.0.min.js','../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
         
     search_fields = ('title',)
     prepopulated_fields = {'slug': ['title']}
@@ -100,13 +165,64 @@ class criterionAdmin(admin.ModelAdmin):
             + urlencode({"criterion__id": f"{obj.id}"})
         )
         return format_html('<a href="{}">{}</a>', url, count)
+    
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật tiêu chí"
+        else :
+            action_type = "Thêm mới tiêu chí"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_criterion_change', args=[obj.pk]))
+        # EmailNotification.send_criterion_email(request, [obj], action_type, admin_url)
+
+    def delete_model(self, request, obj):
+        # EmailNotification.send_criterion_email(request, [obj], "Xóa tiêu chí", "Delete")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        # EmailNotification.send_criterion_email(request, queryset, "Xóa tiêu chí", "Delete")
+        super().delete_queryset(request, queryset)
 
     view_attests_link.short_description = "Minh chứng"
+
+class PhotoAttestInline(admin.TabularInline):
+    model = PhotoAttest
+    fields = ("showphoto_thumbnail",)
+    readonly_fields = ("showphoto_thumbnail",)
+    max_num = 0
+
+    def showphoto_thumbnail(self, instance):
+        """A (pseudo)field that returns an image thumbnail for a show photo."""
+        tpl = get_template("admin/templates/show_thumbnail.html")
+        return tpl.render({"photo": instance.photo})
+
+    showphoto_thumbnail.short_description = _("Thumbnail")
+
+class PhotoCommonAttestInline(admin.TabularInline):
+    model = PhotoCommonAttest
+    fields = ("showphoto_thumbnail",)
+    readonly_fields = ("showphoto_thumbnail",)
+    max_num = 0
+
+    def showphoto_thumbnail(self, instance):
+        """A (pseudo)field that returns an image thumbnail for a show photo."""
+        tpl = get_template("admin/templates/show_thumbnail.html")
+        return tpl.render({"photo": instance.photo})
+
+    showphoto_thumbnail.short_description = _("Thumbnail")
 
 #admin.site.register(attest)
 @admin.register(attest)
 # class attestAdmin(admin.ModelAdmin):
 class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+        
+    form = AttestForm
+    inlines = [PhotoAttestInline]
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        form.save_photos(form.instance)
+    
     list_display = ('criterion_name', 'attest_id_name','attest_stt', 'title', 'body', 'performer')
     list_display_links = ('title',)
     list_filter = (
@@ -121,10 +237,122 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     ordering = ( 'attest_id','attest_stt')
     search_fields = ('title', 'performer')
-    prepopulated_fields = {'slug': ['attest_id','attest_stt']}
-    class Media:
-        js = ('../static/js/custom_admin.js',)  # Đường dẫn file JS
+    # prepopulated_fields = {'slug': ['attest_id','attest_stt']}
     
+    # def get_readonly_fields(self, request, obj=None):
+    #     """
+    #     Làm cho tất cả các trường readonly nếu đây là minh chứng dùng chung.
+    #     """
+    #     if obj and obj.common_attest is not None:  # Nếu có liên kết với common_attest
+    #         # Lấy danh sách các trường có trong form
+    #         form_fields = [field.name for field in self.model._meta.fields]
+    #         # Loại bỏ các trường không được quản lý bởi form
+    #         readonly_fields = [field for field in form_fields if field in self.form.declared_fields]
+    #         return readonly_fields
+    #     return super().get_readonly_fields(request, obj)
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # if obj:
+        #     if obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+        #         for field_name in form.base_fields:
+        #             form.base_fields[field_name].disabled = True  # Vô hiệu hóa trường
+        # else:
+        #     form.base_fields['is_common'].disabled = True
+        if obj:
+            if obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+                for field_name in form.base_fields:
+                    form.base_fields[field_name].disabled = True  # Vô hiệu hóa trường
+            else:
+                form.base_fields['common_attest'].disabled = True
+                form.base_fields['is_common'].disabled = True
+                if 'photos' in form.base_fields:
+                    form.base_fields['photos'].disabled = False
+        # else:
+        #     form.base_fields['is_common'].disabled = True
+        return form
+    
+    def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
+        if obj and obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+            context['show_save'] = False  # Ẩn nút lưu
+            context['show_save_and_continue'] = False
+            context['show_save_and_add_another'] = False
+        else:
+            context['show_save'] = True
+            context['show_save_and_continue'] = True
+            context['show_save_and_add_another'] = True
+        return super().render_change_form(request, context, add, change, form_url, obj)
+    
+    # Gửi log
+    
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật minh chứng"
+        else :
+            action_type = "Thêm mới minh chứng"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_attest_change', args=[obj.pk]))
+        
+        if not change and obj.common_attest : 
+            # obj.is_common = bool(obj.common_attest)  # Gán True nếu common_attest có giá trị
+            common_attest_data = obj.common_attest
+            obj.attest_id = common_attest_data.common_attest_id
+            obj.attest_stt = common_attest_data.common_attest_stt
+            obj.title = common_attest_data.title
+            obj.body = common_attest_data.body
+            obj.performer = common_attest_data.performer
+            obj.note = "DC"
+            obj.slug = common_attest_data.slug
+            # obj.image = common_attest_data.image
+            # obj.criterion = common_attest_data.criterion
+            obj.box = common_attest_data.box
+            obj.is_common = True
+            
+        else:
+            obj.is_common = False
+        
+        # # # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
+        # # EmailNotification.send_attest_email(request, [obj], action_type)
+        # transaction.on_commit(lambda: 
+        #     EmailNotification.send_attest_email(request, [obj], action_type)
+        # )
+        super().save_model(request, obj, form, change)
+    
+    def delete_model(self, request, obj):
+        """ Gửi email khi xóa """
+        
+        # # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
+        # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng")
+        
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """ Gửi email chứa danh sách attest bị xóa trước khi xóa """
+        # delete photo
+        for attest in queryset:
+            for photo_attest in attest.photos.all():  # Lấy ảnh liên kết
+                if photo_attest.photo:
+                    try:
+                        thumbnail_path = get_thumbnailer(photo_attest.photo)['small'].path
+                        if os.path.isfile(thumbnail_path):
+                            os.remove(thumbnail_path)
+                    except Exception:
+                        pass  # Bỏ qua nếu không có thumbnail
+
+                    if os.path.isfile(photo_attest.photo.path):
+                        os.remove(photo_attest.photo.path)
+        
+        
+        # # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
+        # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng")
+        
+        # Gọi phương thức mặc định để xóa các attest
+        super().delete_queryset(request, queryset)
+    
+    class Media:
+        js = ('../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js')  # Đường dẫn file JS
+        css = {
+            'all': ('../static/css/custom_admin.css',)
+        }
     @admin.display(description="Tiêu chí")
     def criterion_name(self, obj):
         if self.model.objects.filter(criterion=obj.criterion, pk__lt=obj.pk).exists():
@@ -272,6 +500,13 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
 
 @admin.register(common_attest)
 class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+    form = CommonAttestForm
+    inlines = [PhotoCommonAttestInline]
+    
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        form.save_photos(form.instance)
+    
     list_display = ('common_attest_id_name','common_attest_stt', 'title', 'body', 'performer')
     list_display_links = ('title',)
     # list_filter = (
@@ -286,12 +521,97 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     ordering = ( 'common_attest_id','common_attest_stt')
     search_fields = ('title', 'performer')
-    prepopulated_fields = {'slug': ['common_attest_id','common_attest_stt']}
-    class Media:
-        js = ('../static/js/custom_admin.js',)  # Đường dẫn file JS
+    # prepopulated_fields = {
+    #     'slug': ['common_attest_id','common_attest_stt'],
+    #     # 'common_attest_id':['box','criterion'],
+    # }
     
+    class Media:
+        js = ('../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js')  # Đường dẫn file JS
+    
+    def save_model(self, request, obj, form, change):
+        """
+        Ghi đè save_model cập nhật tất cả các attest liên kết với common_attest.
+        """
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật minh chứng dùng chung"
+        else :
+            action_type = "Thêm mới minh chứng dùng chung"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_common_attest_change', args=[obj.pk]))
+        
+        super().save_model(request, obj, form, change)
+        # Tìm tất cả các attest liên quan tới common_attest hiện tại
+        related_attests = attest.objects.filter(common_attest=obj)
+        # Cập nhật các trường trong attest liên quan nếu cần
+        for attest_instance in related_attests:
+            attest_instance.title = obj.title  # Đồng bộ trường `title`
+            attest_instance.body = obj.body  
+            attest_instance.performer = obj.performer  
+            attest_instance.note = obj.note  
+            attest_instance.slug = obj.slug  
+            # attest_instance.image = obj.image  
+            
+            attest_instance.criterion = obj.criterion  
+            attest_instance.box = obj.box  
+            attest_instance.save()  # Lưu thay đổi cho từng instance
+            
+        
+        # def update_photos():
+        #     related_attests1 = attest.objects.filter(common_attest=obj)
+
+        #     for attest_instance1 in related_attests1:
+        #         attest_instance1.photos.all().delete()  # Xóa ảnh cũ
+                    
+        #         for photo_common1 in obj.photos.all():
+        #             PhotoAttest.objects.create(show=attest_instance1, photo=photo_common1.photo)    
+        # transaction.on_commit(update_photos(obj))  # Đảm bảo chạy sau khi commit database
+        
+        transaction.on_commit(lambda: ActionConvert.update_photos(obj))  # Đảm bảo chạy sau khi commit database
+        
+        # # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
+        # transaction.on_commit(lambda: 
+        #     EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
+        # )
     @admin.display(description="Mã minh chứng")
+    
     def common_attest_id_name(self, obj):
         if self.model.objects.filter(common_attest_id=obj.common_attest_id, pk__lt=obj.pk).exists():
             return ""
         return f"{obj.common_attest_id}".upper()
+
+    def delete_model(self, request, obj):
+        """ Gửi email khi xóa """
+        # EmailNotification.send_common_attest_email(request, [obj], "Xóa minh chứng dùng chung", "Delete")
+        
+        ActionConvert.delete_attests(obj)  # xóa ảnh
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """ Gửi email chứa danh sách attest bị xóa trước khi xóa """
+        
+        # delete photo
+        for common_attest in queryset:
+            ActionConvert.delete_attests(common_attest)  # Xóa ảnh liên quan
+            for photo_attest in common_attest.photos.all():  # Lấy ảnh liên kết
+                if photo_attest.photo:
+                    try:
+                        thumbnail_path = get_thumbnailer(photo_attest.photo)['small'].path
+                        if os.path.isfile(thumbnail_path):
+                            os.remove(thumbnail_path)
+                    except Exception:
+                        pass  # Bỏ qua nếu không có thumbnail
+
+                    if os.path.isfile(photo_attest.photo.path):
+                        os.remove(photo_attest.photo.path)
+        
+        # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
+        
+        # Gọi phương thức mặc định để xóa các attest
+        super().delete_queryset(request, queryset)
+        
+
+# chưa cập nhật được slug , ẩn trường slug khi chỉnh sửa, thêm mới, cập nhật trường trong tiêu chí ==> xong
+
+# Không gửi mail cho ad khi thao tác với database, cần tạo mới 1 table lưu các thông tin chỉnh sửa của người dùng 
+# đến khi nào người dùng gửi thông báo cho admin thì sẽ lấy hết thông tin trong bảng đó gửi cho admin

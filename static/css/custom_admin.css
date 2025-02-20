@@ -1,9 +1,12 @@
 .tr-color-1 {
-    background-color: #f0f8ff; /* Màu xanh nhạt */
+    background-color: #f0f8ff; 
 }
 .tr-color-2 {
-    background-color: #fffacd; /* Màu vàng nhạt */
+    background-color: #fffacd; 
 }
 .tr-color-3 {
-    background-color: #f5f5f5; /* Màu xám nhạt */
+    background-color: #f5f5f5;
+}
+#add_id_common_attest, #change_id_common_attest, #delete_id_common_attest, #change_id_criterion, #change_id_box {
+    display: none !important;
 }
