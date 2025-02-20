@@ -1,10 +1,14 @@
+import os
 from django import forms
 from django.contrib import admin
+
+from CTDT.forms import AttestForm, CommonAttestForm
+
 
 # from CTDT import forms
 
 # Register your models here.
-from .models import Post
+from .models import PhotoCommonAttest, Post, PhotoAttest
 from .models import box
 from .models import standard
 from .models import criterion
@@ -35,10 +39,15 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from .notifications import EmailNotification
+from .admin_convert.action_convert import ActionConvert
 from django.contrib.admin.widgets import AdminTextInputWidget 
 
 from django.utils.text import slugify
+from django.template.loader import get_template
+from django.utils.translation import gettext as _
 
+from easy_thumbnails.files import get_thumbnailer
+from django.db import transaction
 
 admin.site.register(Post)
 
@@ -176,26 +185,44 @@ class criterionAdmin(admin.ModelAdmin):
 
     view_attests_link.short_description = "Minh chứng"
 
-class AttestForm(forms.ModelForm):
-    class Meta:
-        model = attest
-        fields = "__all__"
+class PhotoAttestInline(admin.TabularInline):
+    model = PhotoAttest
+    fields = ("showphoto_thumbnail",)
+    readonly_fields = ("showphoto_thumbnail",)
+    max_num = 0
 
-    def clean(self):
-        cleaned_data = super().clean()
-        common_attest = cleaned_data.get("common_attest")
+    def showphoto_thumbnail(self, instance):
+        """A (pseudo)field that returns an image thumbnail for a show photo."""
+        tpl = get_template("admin/templates/show_thumbnail.html")
+        return tpl.render({"photo": instance.photo})
 
-        if common_attest:
-            # Sao chép giá trị từ common_attest
-            cleaned_data["title"] = common_attest.title
-            cleaned_data["body"] = common_attest.body
-            # Thêm các trường khác nếu cần
-        return cleaned_data
+    showphoto_thumbnail.short_description = _("Thumbnail")
+
+class PhotoCommonAttestInline(admin.TabularInline):
+    model = PhotoCommonAttest
+    fields = ("showphoto_thumbnail",)
+    readonly_fields = ("showphoto_thumbnail",)
+    max_num = 0
+
+    def showphoto_thumbnail(self, instance):
+        """A (pseudo)field that returns an image thumbnail for a show photo."""
+        tpl = get_template("admin/templates/show_thumbnail.html")
+        return tpl.render({"photo": instance.photo})
+
+    showphoto_thumbnail.short_description = _("Thumbnail")
+
 #admin.site.register(attest)
 @admin.register(attest)
 # class attestAdmin(admin.ModelAdmin):
 class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+        
     form = AttestForm
+    inlines = [PhotoAttestInline]
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        form.save_photos(form.instance)
+    
     list_display = ('criterion_name', 'attest_id_name','attest_stt', 'title', 'body', 'performer')
     list_display_links = ('title',)
     list_filter = (
@@ -238,6 +265,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             else:
                 form.base_fields['common_attest'].disabled = True
                 form.base_fields['is_common'].disabled = True
+                if 'photos' in form.base_fields:
+                    form.base_fields['photos'].disabled = False
         # else:
         #     form.base_fields['is_common'].disabled = True
         return form
@@ -273,7 +302,7 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             obj.performer = common_attest_data.performer
             obj.note = "DC"
             obj.slug = common_attest_data.slug
-            obj.image = common_attest_data.image
+            # obj.image = common_attest_data.image
             # obj.criterion = common_attest_data.criterion
             obj.box = common_attest_data.box
             obj.is_common = True
@@ -281,20 +310,39 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         else:
             obj.is_common = False
         
-        # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
-        # EmailNotification.send_attest_email(request, [obj], action_type)
+        # # # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
+        # # EmailNotification.send_attest_email(request, [obj], action_type)
+        # transaction.on_commit(lambda: 
+        #     EmailNotification.send_attest_email(request, [obj], action_type)
+        # )
         super().save_model(request, obj, form, change)
     
     def delete_model(self, request, obj):
         """ Gửi email khi xóa """
-        # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
+        
+        # # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
         # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng")
+        
         super().delete_model(request, obj)
     
     def delete_queryset(self, request, queryset):
         """ Gửi email chứa danh sách attest bị xóa trước khi xóa """
+        # delete photo
+        for attest in queryset:
+            for photo_attest in attest.photos.all():  # Lấy ảnh liên kết
+                if photo_attest.photo:
+                    try:
+                        thumbnail_path = get_thumbnailer(photo_attest.photo)['small'].path
+                        if os.path.isfile(thumbnail_path):
+                            os.remove(thumbnail_path)
+                    except Exception:
+                        pass  # Bỏ qua nếu không có thumbnail
 
-        # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
+                    if os.path.isfile(photo_attest.photo.path):
+                        os.remove(photo_attest.photo.path)
+        
+        
+        # # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
         # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng")
         
         # Gọi phương thức mặc định để xóa các attest
@@ -452,6 +500,13 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
 
 @admin.register(common_attest)
 class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+    form = CommonAttestForm
+    inlines = [PhotoCommonAttestInline]
+    
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        form.save_photos(form.instance)
+    
     list_display = ('common_attest_id_name','common_attest_stt', 'title', 'body', 'performer')
     list_display_links = ('title',)
     # list_filter = (
@@ -495,12 +550,29 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             attest_instance.performer = obj.performer  
             attest_instance.note = obj.note  
             attest_instance.slug = obj.slug  
-            attest_instance.image = obj.image  
+            # attest_instance.image = obj.image  
+            
             attest_instance.criterion = obj.criterion  
             attest_instance.box = obj.box  
             attest_instance.save()  # Lưu thay đổi cho từng instance
+            
         
-        # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
+        # def update_photos():
+        #     related_attests1 = attest.objects.filter(common_attest=obj)
+
+        #     for attest_instance1 in related_attests1:
+        #         attest_instance1.photos.all().delete()  # Xóa ảnh cũ
+                    
+        #         for photo_common1 in obj.photos.all():
+        #             PhotoAttest.objects.create(show=attest_instance1, photo=photo_common1.photo)    
+        # transaction.on_commit(update_photos(obj))  # Đảm bảo chạy sau khi commit database
+        
+        transaction.on_commit(lambda: ActionConvert.update_photos(obj))  # Đảm bảo chạy sau khi commit database
+        
+        # # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
+        # transaction.on_commit(lambda: 
+        #     EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
+        # )
     @admin.display(description="Mã minh chứng")
     
     def common_attest_id_name(self, obj):
@@ -511,13 +583,33 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     def delete_model(self, request, obj):
         """ Gửi email khi xóa """
         # EmailNotification.send_common_attest_email(request, [obj], "Xóa minh chứng dùng chung", "Delete")
+        
+        ActionConvert.delete_attests(obj)  # xóa ảnh
         super().delete_model(request, obj)
     
     def delete_queryset(self, request, queryset):
         """ Gửi email chứa danh sách attest bị xóa trước khi xóa """
+        
+        # delete photo
+        for common_attest in queryset:
+            ActionConvert.delete_attests(common_attest)  # Xóa ảnh liên quan
+            for photo_attest in common_attest.photos.all():  # Lấy ảnh liên kết
+                if photo_attest.photo:
+                    try:
+                        thumbnail_path = get_thumbnailer(photo_attest.photo)['small'].path
+                        if os.path.isfile(thumbnail_path):
+                            os.remove(thumbnail_path)
+                    except Exception:
+                        pass  # Bỏ qua nếu không có thumbnail
+
+                    if os.path.isfile(photo_attest.photo.path):
+                        os.remove(photo_attest.photo.path)
+        
         # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
+        
         # Gọi phương thức mặc định để xóa các attest
         super().delete_queryset(request, queryset)
+        
 
 # chưa cập nhật được slug , ẩn trường slug khi chỉnh sửa, thêm mới, cập nhật trường trong tiêu chí ==> xong
 

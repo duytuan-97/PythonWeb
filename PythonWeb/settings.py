@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 
+import os
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -41,6 +43,7 @@ INSTALLED_APPS = [
     'users',
     'django_admin_listfilter_dropdown',
     "import_export",
+    'easy_thumbnails',
 ]
 
 MIDDLEWARE = [
@@ -117,6 +120,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # LANGUAGE_CODE = 'en-us'
 # Thay đổi ngôn ngữ chương trình
+# B1: run md mô hình\locale ==> add LOCALE_PATHS = [os.path.join(BASE_DIR, 'locale')] ==>  run mkdir locale ==> run django-admin makemessages -l vi ==> add language for file ".../locale/vi/LC_MESSAGES/django.po" ==> run django-admin compilemessages
+
+
 LANGUAGE_CODE = 'vi'
 
 # TIME_ZONE = 'UTC'
@@ -126,6 +132,9 @@ USE_I18N = True
 
 # USE_TZ = True
 USE_TZ = False
+
+
+
 
 
 # Static files (CSS, JavaScript, Images)
@@ -138,7 +147,7 @@ STATIC_URL = '/static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-import os
+
 STATICFILES_DIRS = [
    os.path.join(BASE_DIR, "static"),
 ]
@@ -146,6 +155,9 @@ STATICFILES_DIRS = [
 
 #Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, 'locale'),  # Thư mục chung cho toàn bộ dự án
+]
 
 # code thiết lập đường dẫn media
 MEDIA_URL = 'media/'
@@ -153,8 +165,14 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Looking to send emails in production? Check out our Email API/SMTP product!
 EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_HOST_USER = 'cac66c28e73675'
-EMAIL_HOST_PASSWORD = 'e17ba893121fbe'
+EMAIL_HOST_USER = 'db8c56d61c5999'
+EMAIL_HOST_PASSWORD = '922392eb11c528'
 EMAIL_PORT = '2525'
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+THUMBNAIL_ALIASES = {
+    "": {
+        "small": {"size": (150, 150)}
+    },
+}

@@ -234,7 +234,7 @@ def import_word(request):
                             attest_stt = stt,
                             slug=slugify(ma_minh_chung)+ "_" + str(stt),  # Tạo slug từ attest_id
                             # slug=slugify(ma_minh_chung),  # Tạo slug từ attest_id
-                            image='fallback.jpeg',  # Sử dụng hình mặc định nếu không có hình được cung cấp
+                            # photo='fallback.jpeg',  # Sử dụng hình mặc định nếu không có hình được cung cấp
                             is_common = is_common1,
                             common_attest = common_evidence
                         )
@@ -363,6 +363,7 @@ def get_common_attest_data(request, pk):
         "performer": common.performer,
         "slug": common.slug,
         # "image": common.image.name,
+        "criterion": common.criterion.id,
         "box": common.box.id,
         "title": common.title,
         "body": common.body,
