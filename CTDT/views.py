@@ -363,6 +363,7 @@ def get_common_attest_data(request, pk):
         "performer": common.performer,
         "slug": common.slug,
         # "image": common.image.name,
+        "criterion": common.criterion.id,
         "box": common.box.id,
         "title": common.title,
         "body": common.body,

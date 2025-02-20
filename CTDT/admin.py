@@ -265,6 +265,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             else:
                 form.base_fields['common_attest'].disabled = True
                 form.base_fields['is_common'].disabled = True
+                if 'photos' in form.base_fields:
+                    form.base_fields['photos'].disabled = False
         # else:
         #     form.base_fields['is_common'].disabled = True
         return form
@@ -308,16 +310,19 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         else:
             obj.is_common = False
         
-        # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
-        # EmailNotification.send_attest_email(request, [obj], action_type)
+        # # # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
+        # # EmailNotification.send_attest_email(request, [obj], action_type)
+        # transaction.on_commit(lambda: 
+        #     EmailNotification.send_attest_email(request, [obj], action_type)
+        # )
         super().save_model(request, obj, form, change)
     
     def delete_model(self, request, obj):
         """ Gửi email khi xóa """
         
-        
-        # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
+        # # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
         # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng")
+        
         super().delete_model(request, obj)
     
     def delete_queryset(self, request, queryset):
@@ -336,7 +341,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     if os.path.isfile(photo_attest.photo.path):
                         os.remove(photo_attest.photo.path)
         
-        # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
+        
+        # # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
         # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng")
         
         # Gọi phương thức mặc định để xóa các attest
@@ -562,7 +568,11 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         # transaction.on_commit(update_photos(obj))  # Đảm bảo chạy sau khi commit database
         
         transaction.on_commit(lambda: ActionConvert.update_photos(obj))  # Đảm bảo chạy sau khi commit database
-        # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
+        
+        # # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
+        # transaction.on_commit(lambda: 
+        #     EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
+        # )
     @admin.display(description="Mã minh chứng")
     
     def common_attest_id_name(self, obj):
@@ -573,6 +583,7 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     def delete_model(self, request, obj):
         """ Gửi email khi xóa """
         # EmailNotification.send_common_attest_email(request, [obj], "Xóa minh chứng dùng chung", "Delete")
+        
         ActionConvert.delete_attests(obj)  # xóa ảnh
         super().delete_model(request, obj)
     
@@ -595,6 +606,7 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                         os.remove(photo_attest.photo.path)
         
         # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
+        
         # Gọi phương thức mặc định để xóa các attest
         super().delete_queryset(request, queryset)
         

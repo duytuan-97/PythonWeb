@@ -190,6 +190,15 @@ class EmailNotification:
             message += f"Nơi ban hành: {obj.performer}\n"
             message += f"Ghi chú: {obj.note}\n"
             # message += f"Hình : {obj.image}\n"
+            # Lặp qua các photo liên quan từ PhotoAttest (nếu có)
+            photo_urls = []
+            for photo in obj.photos.all():
+                # Kiểm tra xem file ảnh có URL không (chỉ khi ảnh được upload thành công)
+                if photo.photo:
+                    photo_urls.append(photo.photo.url)
+            if photo_urls:
+                message += "Hình:\n" + "\n".join(photo_urls) + "\n"
+            
             message += f"Tiêu chí: {obj.criterion}\n"
             message += f"Hộp: {obj.box}\n"
             message += f"Ngày cập nhật: {obj.updated_on}\n\n"
@@ -227,6 +236,16 @@ class EmailNotification:
                 message += "\nKiểm tra chi tiết trong hệ thống Admin.\n"
                 message += admin_url
             
+                # Tạo HTML message và hiển thị ảnh dưới dạng liên kết hoặc nhúng (nếu mail client hỗ trợ)
+                photos_html = ""
+                if photo_urls:
+                    # Ví dụ: hiển thị dưới dạng danh sách liên kết ảnh
+                    photos_html = "<ul>"
+                    for url in photo_urls:
+                        url = request.build_absolute_uri(url)
+                        photos_html += f'<li><img src="{url}" alt="Photo" style="max-width:300px;"></li>'
+                    photos_html += "</ul>"
+            
                 html_message += f"""
                     <li>
                         <p><b>ID:</b> {obj.attest_id}</p>
@@ -238,6 +257,8 @@ class EmailNotification:
                         <p><b>Tiêu chí:</b> {obj.criterion}</p>
                         <p><b>Hộp:</b> {obj.box}</p>
                         <p><b>Ngày cập nhật:</b> {obj.updated_on}</p>
+                        <p><b>Hình ảnh:</b></p>
+                        {photos_html}
                         <br>
                         <a href="{admin_url}" style="display: inline-block; padding: 10px 15px; color: white; background-color: #28a745; text-decoration: none; border-radius: 5px;">
                             🔗 Xem chi tiết
@@ -289,6 +310,15 @@ class EmailNotification:
             message += f"Nơi ban hành: {obj.performer}\n"
             message += f"Ghi chú: {obj.note}\n"
             # message += f"Hình : {obj.image}\n"
+            # Lặp qua các photo liên quan từ PhotoAttest (nếu có)
+            photo_urls = []
+            for photo in obj.photos.all():
+                # Kiểm tra xem file ảnh có URL không (chỉ khi ảnh được upload thành công)
+                if photo.photo:
+                    photo_urls.append(photo.photo.url)
+            if photo_urls:
+                message += "Hình:\n" + "\n".join(photo_urls) + "\n"
+                
             message += f"Tiêu chí: {obj.criterion}\n"
             message += f"Hộp: {obj.box}\n"
             message += f"Ngày cập nhật: {obj.updated_on}\n\n"
@@ -296,6 +326,16 @@ class EmailNotification:
                 message += "\nKiểm tra chi tiết trong hệ thống Admin.\n"
                 message += admin_url
             
+                # Tạo HTML message và hiển thị ảnh dưới dạng liên kết hoặc nhúng (nếu mail client hỗ trợ)
+                photos_html = ""
+                if photo_urls:
+                    # Ví dụ: hiển thị dưới dạng danh sách liên kết ảnh
+                    photos_html = "<ul>"
+                    for url in photo_urls:
+                        url = request.build_absolute_uri(url)
+                        photos_html += f'<li><img src="{url}" alt="Photo" style="max-width:300px;"></li>'
+                    photos_html += "</ul>"
+                
                 html_message = f"""
                 <html>
                     <body style="font-family: Arial, sans-serif; color: #333;">
@@ -310,6 +350,8 @@ class EmailNotification:
                         <p><b>Tiêu chí:</b> {obj.criterion}</p>
                         <p><b>Hộp:</b> {obj.box}</p>
                         <p><b>Ngày cập nhật:</b> {obj.updated_on}</p>
+                        <p><b>Hình ảnh:</b></p>
+                        {photos_html}
                         <br>
                         <a href="{admin_url}" style="display: inline-block; padding: 10px 15px; color: white; background-color: #28a745; text-decoration: none; border-radius: 5px;">
                             🔗 Xem chi tiết

@@ -120,13 +120,32 @@ document.addEventListener("DOMContentLoaded", function () {
 // });
 
 
+
 //khi thêm minh chứng dùng chung
 document.addEventListener("DOMContentLoaded", function () {
+
+    var isCommonElem = document.getElementById("id_is_common");
+    if(isCommonElem) {
+        console.log("isCommonElem.checked:", isCommonElem.checked);
+        // Kiểm tra nếu giá trị là "true"
+        if(isCommonElem.checked === true) {
+            // Lấy tất cả các checkbox trong các ô có class "delete"
+            document.querySelectorAll("td.delete input[type='checkbox']").forEach(function(checkbox) {
+                // Ẩn checkbox thông qua style, hoặc thay đổi attribute hidden
+                checkbox.style.display = "none";
+                // checkbox.setAttribute("hidden", "hidden");
+            });
+            console.log("Ẩn checkbox vì id_is_common là checked.");
+
+        }
+    }
+
     const commonAttestField = document.querySelector("#id_common_attest");
     // commonAttestField.value = "";
     console.log(commonAttestField);
 
     const fieldsToToggle = [
+        "#id_attest_id",
         "#id_attest_stt",
         "#id_title",
         "#id_body",
@@ -135,7 +154,7 @@ document.addEventListener("DOMContentLoaded", function () {
         "#id_box",
     ];
     const attest_idField = document.querySelector("#id_attest_id");
-    const photos_idField = document.querySelector("#id_photos");
+    // const photos_idField = document.querySelector("#id_photos");
     const attest_sttField = document.querySelector("#id_attest_stt");
     const performerField = document.querySelector("#id_performer");
     const slugField = document.querySelector("#id_slug");
@@ -145,14 +164,17 @@ document.addEventListener("DOMContentLoaded", function () {
     const titleField = document.querySelector("#id_title");
     const bodyField = document.querySelector("#id_body");
     const is_commonField = document.querySelector("#id_is_common");
+    const common_Field = document.querySelector(".field-is_common");
+    attest_ctiretion = null;
 
     const currentURL = window.location.href;
     console.log(currentURL);
 
     if (currentURL.includes('/attest/add/')) {
-        const common_Field = document.querySelector(".field-is_common");
+        
         common_Field.style.display = "none";//ẩn trường
     }
+    
 
     //slug change
     (function($) {
@@ -203,23 +225,21 @@ document.addEventListener("DOMContentLoaded", function () {
             if (field) {
                 // field.readOnly  = true; // Bật/tắt trường "#id_note","#id_criterion",
                 if (disable && commonAttestField) {
-                    //hiden input photo
-                    document.getElementById("id_photos").addEventListener("click", function(event) {
-                        event.preventDefault(); // Ngăn chặn hộp thoại file mở lên
-                    });
+                    
                     
                     field.readOnly  = false; // tắt trường "#id_note","#id_criterion",
                     // if (commonAttestField) {
                     commonAttestField.addEventListener("change", async function () {
                     const commonAttestId = commonAttestField.value;
                         if (commonAttestId) {
+
                             // Gửi yêu cầu lấy dữ liệu từ server
                             const response = await fetch(`/get_common_attest_data/${commonAttestId}/`);
                             const data = await response.json();
                             console.log("Data:..............................");
                             // console.log(data);
                             console.log(data);
-                            console.log(data.image);
+                            // console.log(data.image);
 
                             if (response.ok) {
                                 field.readOnly  = true; // Bật/tắt trường "#id_note","#id_criterion",
@@ -234,6 +254,9 @@ document.addEventListener("DOMContentLoaded", function () {
                                 bodyField.value = data.body || "";
                                 NoteField.value = "DC" || "";
                                 is_commonField.value = true || false;
+
+                                attest_ctiretion = data.criterion || "";
+
                                     
 
                             } else {
@@ -246,6 +269,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             NoteField.value = "";
                             field.value = ""; // Xóa giá trị nếu disable
                             is_commonField.value = false;
+                            
                         }
                     });
                 // }
@@ -305,9 +329,53 @@ document.addEventListener("DOMContentLoaded", function () {
                     
                 }
         
-                $("#id_box, #id_criterion").on("keyup change", updateAttestID);
+                // $("#id_box, #id_criterion").on("keyup change", updateAttestID);
+
+                console.log("_______common_attest value:", $("#id_common_attest").val());
+                if (!$("#id_common_attest").val()) {
+                    $("#id_box, #id_criterion").on("keyup change", updateAttestID);
+                }
                 $("input[type='submit']").on("click", validateAttestID);
                 $("#id_common_attest").on("keyup change", clearValidationErrors);
+
+                $("#id_common_attest").on("change", function() {
+                    var newValue = $(this).val();
+                    console.log("common_attest thay đổi:", newValue);
+                    if (newValue) {
+
+                        // console.log("11111 Ẩn checkbox..............!");
+                        // document.querySelectorAll("td.delete input[type='checkbox']").forEach(function(checkbox) {
+                        //     // Ẩn checkbox thông qua style, hoặc thay đổi attribute hidden
+                        //     console.log("Ẩn checkbox..............!");
+                        //     checkbox.style.display = "none";
+                        //     // checkbox.setAttribute("hidden", "hidden");
+                        // });
+
+                        
+
+                        // Nếu có giá trị, gỡ bỏ sự kiện cho id_box, id_criterion
+                        $("#id_box, #id_criterion").off("keyup change", updateAttestID);
+
+                        $("#id_criterion").on("blur", function() {
+                            // Nếu đã chọn common_attest
+                            
+                            var attestCriterion = $(this).val();
+                            
+                            // var commonCriterion = $("#id_common_criterion").val(); // giá trị này cần đảm bảo được render trên giao diện, hoặc bạn có thể truyền qua data attribute
+                            if (attestCriterion === attest_ctiretion) {
+                                alert("Criterion của attest phải khác với Criterion của common_attest!");
+                                $(this).css("border", "2px solid red");
+                                // Bạn có thể xóa hoặc focus lại vào input để yêu cầu nhập lại
+                            } else {
+                                $(this).css("border", "");
+                            }
+                        });
+
+                    } else {
+                        // Nếu rỗng, gắn lại sự kiện
+                        $("#id_box, #id_criterion").on("keyup change", updateAttestID);
+                    }
+                });
             });
         })(django.jQuery);
     }
@@ -315,10 +383,25 @@ document.addEventListener("DOMContentLoaded", function () {
     if (commonAttestField) {
 
         console.log("Tìm thấy phần tử select!");
+        // Ẩn các checkbox Với attest kế thừa common_attest
+        
+        
+
         commonAttestField.addEventListener("change", function () {
             if (commonAttestField.value) {
+                
+                document.getElementById("id_photos").addEventListener("click", function(event) {
+                    event.preventDefault(); // Ngăn chặn hộp thoại file mở lên
+                });
+
+                document.getElementById("id_box").addEventListener("mousedown", function(e) {
+                    e.preventDefault();
+                });
+                
                 toggleFields(true); // Vô hiệu hoá các trường
             } else {
+                document.getElementById("id_box").addEventListener("mousedown", function(e) {
+                });
                 toggleFields(false);
             }
         });
@@ -331,7 +414,7 @@ document.addEventListener("DOMContentLoaded", function () {
         (function($) {
             $(document).ready(function() {
 
-                alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+                // alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
                 function clearValidationErrors() {
                     // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
                     $(".errornote").remove();
