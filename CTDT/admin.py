@@ -1,8 +1,11 @@
 import os
+from django.contrib import messages
 from django import forms
 from django.contrib import admin
+from django.shortcuts import redirect, render
 
 from CTDT.forms import AttestForm, CommonAttestForm
+from CTDT.model_train.ml_model import train_model
 
 
 # from CTDT import forms
@@ -48,6 +51,10 @@ from django.utils.translation import gettext as _
 
 from easy_thumbnails.files import get_thumbnailer
 from django.db import transaction
+
+
+# from django.utils.decorators import method_decorator
+# from django.contrib.admin.views.decorators import staff_member_required
 
 admin.site.register(Post)
 
@@ -215,7 +222,30 @@ class PhotoCommonAttestInline(admin.TabularInline):
 @admin.register(attest)
 # class attestAdmin(admin.ModelAdmin):
 class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
-        
+    
+    change_list_template = "admin/CTDT/attest/change_list.html"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('train-model/', self.admin_site.admin_view(self.train_model_view), name='CTDT_trainmodel'),
+        ]
+        return custom_urls + urls
+    # @method_decorator(staff_member_required)
+    def train_model_view(self, request):
+        # Xử lý logic train model ở đây
+        if request.method == "POST":
+            # Giả sử hàm train_model() thực hiện quá trình train mô hình
+            try:
+                # train_model() là hàm của bạn
+                train_model()
+                messages.success(request, "Mô hình đã được train lại thành công.")
+            except Exception as e:
+                messages.error(request, f"Lỗi train mô hình: {e}")
+            return redirect("..")
+        return render(request, "admin/train_model.html", context={})
+    
+    
     form = AttestForm
     inlines = [PhotoAttestInline]
 
