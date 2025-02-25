@@ -126,7 +126,15 @@ def photo_upload_to(instance, filename):
     Tạo đường dẫn upload ảnh : 'attest/slug-cua-attest/filename'
     """
     # Nếu đã có trường slug, sử dụng nó, nếu chưa có có thể tạo tạm từ title
-    folder = instance.show.slug  
+    folder = instance.show.slug 
+    
+    # Nếu thêm hình ảnh chung 1 file có 1 mã minh chứng
+    # slug1 = instance.show.slug 
+    # if "_" in slug1:
+    #     folder = slug1.rsplit("_", 1)[0]
+    # else:
+    #     folder = slug1 
+     
     return os.path.join('attest', folder, filename)
 class PhotoCommonAttest(models.Model):
     show = models.ForeignKey(
