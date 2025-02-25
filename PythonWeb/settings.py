@@ -177,9 +177,5 @@ THUMBNAIL_ALIASES = {
     },
 }
 
-# # code thiết lập đường dẫn media
-THUMBNAIL_MEDIA_URL = 'thumbnail_media/'
-THUMBNAIL_MEDIA_ROOT = os.path.join(BASE_DIR, 'thumbnail_media')
+
 THUMBNAIL_EXTENSION = 'jpg'
-# from django.core.files.storage import FileSystemStorage
-# THUMBNAIL_DEFAULT_STORAGE = FileSystemStorage(location=os.path.join(BASE_DIR, 'thumbnail_media'), base_url='/thumbnail_media/')
