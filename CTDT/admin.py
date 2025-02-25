@@ -1,8 +1,12 @@
 import os
+import shutil
+from django.contrib import messages as dj_messages
 from django import forms
 from django.contrib import admin
+from django.shortcuts import redirect, render
 
 from CTDT.forms import AttestForm, CommonAttestForm
+from CTDT.model_train.ml_model import predict_image, train_model
 
 
 # from CTDT import forms
@@ -48,6 +52,10 @@ from django.utils.translation import gettext as _
 
 from easy_thumbnails.files import get_thumbnailer
 from django.db import transaction
+
+
+# from django.utils.decorators import method_decorator
+# from django.contrib.admin.views.decorators import staff_member_required
 
 admin.site.register(Post)
 
@@ -215,7 +223,29 @@ class PhotoCommonAttestInline(admin.TabularInline):
 @admin.register(attest)
 # class attestAdmin(admin.ModelAdmin):
 class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
-        
+    
+    change_list_template = "admin/CTDT/attest/change_list.html"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('train-model/', self.admin_site.admin_view(self.train_model_view), name='CTDT_trainmodel'),
+        ]
+        return custom_urls + urls
+    # @method_decorator(staff_member_required)
+    def train_model_view(self, request):
+        # Xử lý logic train model ở đây
+        if request.method == "POST":
+            # Giả sử hàm train_model() thực hiện quá trình train mô hình
+            try:
+                train_model(request)
+                dj_messages.success(request, "Mô hình đã được train lại thành công.")
+            except Exception as e:
+                dj_messages.error(request, f"Lỗi train mô hình: {e}")
+            return redirect("..")
+        return render(request, "admin/train_model.html", context={})
+    
+    
     form = AttestForm
     inlines = [PhotoAttestInline]
 
@@ -269,7 +299,13 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     form.base_fields['photos'].disabled = False
         # else:
         #     form.base_fields['is_common'].disabled = True
-        return form
+        # return form
+        # Tạo lớp con để override __init__ và truyền request vào form
+        class FormWithRequest(form):
+            def __init__(self2, *args, **inner_kwargs):
+                inner_kwargs['request'] = request
+                super().__init__(*args, **inner_kwargs)
+        return FormWithRequest
     
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
         if obj and obj.common_attest is not None:  # Nếu là minh chứng dùng chung
@@ -285,6 +321,18 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     # Gửi log
     
     def save_model(self, request, obj, form, change):
+        
+        # # for upload in self.files.getlist("photos"):
+        # #     predict_image(upload, request)
+        # uploads = form.cleaned_data.get("photos")
+        # if uploads:
+        #     # Nếu uploads là một danh sách file (với MultipleFileField)
+        #     # hoặc nếu chỉ có 1 file thì bọc nó lại thành list
+        #     if not isinstance(uploads, list):
+        #         uploads = [uploads]
+        #     for upload in uploads:
+        #         predict_image(upload, request)
+        
         super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
         if change :
             action_type = "Cập nhật minh chứng"
@@ -340,6 +388,11 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
 
                     if os.path.isfile(photo_attest.photo.path):
                         os.remove(photo_attest.photo.path)
+                    folder = os.path.dirname(photo_attest.photo.path)
+                    # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
+                    remaining_files = [f for f in os.listdir(folder) if not f.startswith('.')]
+                    if not remaining_files:
+                        shutil.rmtree(folder)
         
         
         # # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
@@ -604,6 +657,12 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
 
                     if os.path.isfile(photo_attest.photo.path):
                         os.remove(photo_attest.photo.path)
+                    
+                    folder1 = os.path.dirname(photo_attest.photo.path)
+                    # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
+                    remaining_files = [f for f in os.listdir(folder1) if not f.startswith('.')]
+                    if not remaining_files:
+                        shutil.rmtree(folder1)
         
         # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
         

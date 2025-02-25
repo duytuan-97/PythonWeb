@@ -1,0 +1,9 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+  <h1>Train lại mô hình</h1>
+  <p>Bấm nút dưới đây để train lại mô hình. Quá trình này có thể mất vài phút.</p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="default">Train Mô hình</button>
+  </form>
+{% endblock %}

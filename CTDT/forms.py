@@ -1,4 +1,6 @@
 from django import forms
+
+from CTDT.model_train.ml_model import predict_image
 from .models import PhotoAttest, PhotoCommonAttest, UploadedFile, attest, common_attest
 
 from django.core.validators import validate_image_file_extension
@@ -33,6 +35,10 @@ class AttestForm(forms.ModelForm):
         model = attest
         fields = "__all__"
 
+    def __init__(self, *args, **kwargs):
+        # Lấy đối tượng request được truyền vào từ admin
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
     
     def clean(self):
         cleaned_data = super().clean()
@@ -53,6 +59,7 @@ class AttestForm(forms.ModelForm):
         """Make sure only images can be uploaded."""
         for upload in self.files.getlist("photos"):
             validate_image_file_extension(upload)
+            predict_image(upload, self.request)
 
     def save_photos(self, show):
         """Process each uploaded image."""
