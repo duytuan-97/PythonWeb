@@ -5,6 +5,25 @@ from django.utils.translation import gettext_lazy as _
 from easy_thumbnails.files import get_thumbnailer
 from django.core.exceptions import ValidationError
 
+from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, Permission
+from django.contrib.admin.models import LogEntry
+from django.utils.translation import gettext_lazy as _
+
+class ProfileUser(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    SendMailUser = models.BooleanField(default=False, verbose_name="Gửi email")
+    
+    def __str__(self):
+        return f" ({self.pk})"
+    class Meta:
+        verbose_name = "Gửi email thông báo" 
+
+#uploadfile
+class UploadedFile(models.Model):
+    file = models.FileField(upload_to='media/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
 
 #uploadfile
 class UploadedFile(models.Model):
@@ -270,3 +289,16 @@ class PhotoAttest(models.Model):
     
     verbose_name = "Hình ảnh"
     verbose_name_plural = "Các hình ảnh"
+    
+
+# Đổi tên các quyền trong model Group
+Group._meta.verbose_name = _("Nhóm người dùng")
+Group._meta.verbose_name_plural = _("Nhóm người dùng")
+
+# Đổi tên trong model LogEntry (lịch sử thay đổi)
+LogEntry._meta.verbose_name = _("Nhật ký hệ thống")
+LogEntry._meta.verbose_name_plural = _("Nhật ký hệ thống")
+
+# Đổi tên các quyền trong Permission
+Permission._meta.verbose_name = _("Quyền hệ thống")
+Permission._meta.verbose_name_plural = _("Quyền hệ thống")

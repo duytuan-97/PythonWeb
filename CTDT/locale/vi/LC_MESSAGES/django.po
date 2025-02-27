@@ -21,4 +21,6 @@ msgstr ""
 msgid "Thumbnail"
 msgstr "Hình ảnh"
 
+msgid "Can add log entry"
+msgstr "Có thể thêm nhật ký hệ thống"
 

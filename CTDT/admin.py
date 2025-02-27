@@ -41,7 +41,6 @@ from django.urls import path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
 from .notifications import EmailNotification
 from .admin_convert.action_convert import ActionConvert
 from django.contrib.admin.widgets import AdminTextInputWidget 
@@ -54,12 +53,30 @@ from easy_thumbnails.files import get_thumbnailer
 from django.db import transaction
 
 
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from .models import ProfileUser
+
+
 # from django.utils.decorators import method_decorator
 # from django.contrib.admin.views.decorators import staff_member_required
 
 admin.site.register(Post)
 
 User = get_user_model()
+
+class SendMailInline(admin.StackedInline):
+    model = ProfileUser
+    sendMailUser = False
+    
+
+# Define a new User admin
+class UserAdmin(BaseUserAdmin):
+    inlines = (SendMailInline, )
+
+# Re-register UserAdmin
+admin.site.unregister(User)
+admin.site.register(User, UserAdmin)
+
 
 @admin.action(description="Mark selected stories as published")
 def make_published(modeladmin, request, queryset):
@@ -82,6 +99,7 @@ class boxAdmin(admin.ModelAdmin):
         else :
             action_type = "Thêm mới hộp"
         admin_url = request.build_absolute_uri(reverse('admin:CTDT_box_change', args=[obj.pk]))
+        
         # EmailNotification.send_box_email(request, [obj], action_type, admin_url)
 
     def delete_model(self, request, obj):
@@ -358,6 +376,11 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         else:
             obj.is_common = False
         
+        
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
         # # # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
         # # EmailNotification.send_attest_email(request, [obj], action_type)
         # transaction.on_commit(lambda: 
@@ -367,6 +390,11 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     def delete_model(self, request, obj):
         """ Gửi email khi xóa """
+        
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
         
         # # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
         # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng")
@@ -394,6 +422,10 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     if not remaining_files:
                         shutil.rmtree(folder)
         
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
         
         # # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
         # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng")
