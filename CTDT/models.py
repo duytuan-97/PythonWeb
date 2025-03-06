@@ -71,6 +71,9 @@ class standard(models.Model):
     def __str__(self):
         return self.title
     class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['title'], name='unique_standard_title'),
+        ]
         verbose_name = "Tiêu chuẩn"
         verbose_name_plural = "Các tiêu chuẩn"
 
@@ -91,7 +94,7 @@ class criterion(models.Model):
         verbose_name_plural = "Các tiêu chí"
     
 class common_attest(models.Model):
-    common_attest_id = models.CharField(max_length=100, primary_key=True)
+    common_attest_id = models.CharField(max_length=100, primary_key=True, verbose_name="ID Minh chứng DC" )
     common_attest_stt = models.CharField(max_length=10, verbose_name="STT")
     
     title = models.CharField(max_length=250, verbose_name="Minh chứng")

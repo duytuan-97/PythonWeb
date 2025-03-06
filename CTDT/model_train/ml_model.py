@@ -29,10 +29,6 @@ valid_paths = []
 class_names = []
 
 def get_valid_image_paths(base_dir):
-    """
-    Duyệt qua các thư mục con (slug) của base_dir và chỉ lấy các file ảnh hợp lệ
-    (không chứa pattern ".150x150_q85" trong tên file).
-    """
     image_paths = []
     # Lấy danh sách các thư mục con (slug)
     slug_folders = [os.path.join(base_dir, slug) for slug in os.listdir(base_dir)
@@ -435,8 +431,8 @@ def predict_image(image_path, request, threshold = 0.7):
         raise ValidationError(f"❌ Hình ảnh '{image_name}' thuộc minh chứng '{class_names[predicted_class]}' nên không được chỉnh sửa hoặc thêm mới.")
         
     else:
-        print(f"✅ Hình ảnh này KHÔNG thuộc minh chứng nào! (Xác suất cao nhất: {confidence:.2f})")
-        return dj_messages.success(request, f"✅ Hình ảnh này KHÔNG thuộc minh chứng nào! (Xác suất cao nhất: {confidence:.2f})")
+        print(f"✅ Hình ảnh '{image_name}' KHÔNG thuộc minh chứng nào! (Xác suất cao nhất: {confidence:.2f})")
+        return dj_messages.success(request, f"✅ Hình ảnh '{image_name}' KHÔNG thuộc minh chứng nào! (Xác suất cao nhất: {confidence:.2f})")
         
         
         # return dj_messages.success(request,f"Hình ảnh này thuộc minh chứng: {class_names[predicted_class]}")

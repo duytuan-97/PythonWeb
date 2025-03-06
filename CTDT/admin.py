@@ -60,7 +60,7 @@ from .models import ProfileUser
 # from django.utils.decorators import method_decorator
 # from django.contrib.admin.views.decorators import staff_member_required
 
-admin.site.register(Post)
+# admin.site.register(Post)
 
 User = get_user_model()
 
