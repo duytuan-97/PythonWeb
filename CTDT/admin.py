@@ -690,11 +690,14 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     if os.path.isfile(photo_attest.photo.path):
                         os.remove(photo_attest.photo.path)
                     
+                    # Kiểm tra thư mục tồn tại trước khi xóa
                     folder1 = os.path.dirname(photo_attest.photo.path)
-                    # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
-                    remaining_files = [f for f in os.listdir(folder1) if not f.startswith('.')]
-                    if not remaining_files:
+                    if os.path.exists(folder1) and not os.listdir(folder1):  # Kiểm tra thư mục rỗng
                         shutil.rmtree(folder1)
+                    # # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
+                    # remaining_files = [f for f in os.listdir(folder1) if not f.startswith('.')]
+                    # if not remaining_files:
+                    #     shutil.rmtree(folder1)
         
         # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
         

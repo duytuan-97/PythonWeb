@@ -139,8 +139,11 @@ class common_attest(models.Model):
     
     def delete(self, *args, **kwargs):
         """Xóa tất cả ảnh liên quan trước khi xóa Attest"""
+       
         for photo in self.photos.all():
-            photo.delete()  # Gọi delete của Photo để xóa file ảnh
+            # photo.delete()  # Gọi delete của Photo để xóa file ảnh
+            if not os.path.exists(photo.photo.path):
+                raise ValidationError(f"File {photo.photo.path} không tồn tại, có thể đã bị xóa trước đó!")
         super().delete(*args, **kwargs)  # Xóa object Attest khỏi database
 
 def photo_upload_to(instance, filename):
@@ -275,7 +278,7 @@ class PhotoAttest(models.Model):
     def delete(self, *args, **kwargs):
         """Xóa file ảnh thực tế trước khi xóa object"""
         
-        if self.photo:
+        if self.photo and not self.show.common_attest:
             thumbnailURL = "./"+get_thumbnailer(self.photo)['small'].url
             if os.path.isfile(thumbnailURL):
                 os.remove(thumbnailURL)  # Xóa file ảnh khỏi hệ thống
