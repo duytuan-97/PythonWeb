@@ -6,6 +6,7 @@ from django.contrib import admin
 from django.shortcuts import redirect, render
 
 from CTDT.forms import AttestForm, CommonAttestForm
+from CTDT.image_utils import remove_image_from_index
 from CTDT.model_train.ml_model import predict_image, train_model
 
 
@@ -221,6 +222,10 @@ class PhotoAttestInline(admin.TabularInline):
         """A (pseudo)field that returns an image thumbnail for a show photo."""
         tpl = get_template("admin/templates/show_thumbnail.html")
         return tpl.render({"photo": instance.photo})
+    
+    def clean_photo(self, instance):
+        if instance.photo:
+            instance.clean()  # Gọi phương thức clean của model để kiểm tra ảnh trùng lặp
 
     showphoto_thumbnail.short_description = _("Thumbnail")
 
@@ -338,6 +343,19 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     # Gửi log
     
+    # def save_formset(self, request, form, formset, change):
+    #     instances = formset.save(commit=False)
+    #     for instance in instances:
+    #         if isinstance(instance, PhotoAttest):
+    #             try:
+    #                 self.inlines[0].clean_photo(instance)
+    #             except forms.ValidationError as e:
+    #                 formset.errors.append(e)
+    #                 return
+    #         instance.save()
+    #     formset.save_m2m()
+
+
     def save_model(self, request, obj, form, change):
         
         # # for upload in self.files.getlist("photos"):
@@ -357,6 +375,26 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         else :
             action_type = "Thêm mới minh chứng"
         admin_url = request.build_absolute_uri(reverse('admin:CTDT_attest_change', args=[obj.pk]))
+        
+        
+        #  # Duyệt qua tất cả formset liên quan (PhotoAttest)
+        # def save_formset(self, request, form, formset, change):
+        #     # Xóa các ảnh bị bỏ chọn trong admin
+        #     for obj in formset.deleted_objects:
+        #         if isinstance(obj, PhotoAttest):
+        #             obj.delete()  # Gọi delete() để xóa ảnh vật lý
+
+        #     instances = formset.save(commit=False)
+        #     for instance in instances:
+        #         if isinstance(instance, PhotoAttest):
+        #             try:
+        #                 self.inlines[0].clean_photo(instance)
+        #             except forms.ValidationError as e:
+        #                 formset.errors.append(e)
+        #                 return
+        #             instance.save()
+
+        #     formset.save_m2m()  # Lưu quan hệ ManyToMany nếu có
         
         if not change and obj.common_attest : 
             # obj.is_common = bool(obj.common_attest)  # Gán True nếu common_attest có giá trị
@@ -387,6 +425,15 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         #     EmailNotification.send_attest_email(request, [obj], action_type)
         # )
         super().save_model(request, obj, form, change)
+        
+        # Xử lý các PhotoAttest instances
+        if 'photoattest_set' in form.cleaned_data:  # Kiểm tra xem có PhotoAttest instances trong form không
+            for photo in form.cleaned_data['photoattest_set']:
+                try:
+                    self.inlines[0].clean_photo(photo)  # Gọi hàm clean_photo nếu cần
+                except forms.ValidationError as e:
+                    raise forms.ValidationError(e)  # Ném lỗi nếu có vấn đề
+                photo.save()  # Lưu PhotoAttest instance
     
     def delete_model(self, request, obj):
         """ Gửi email khi xóa """
@@ -417,6 +464,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     if os.path.isfile(photo_attest.photo.path):
                         os.remove(photo_attest.photo.path)
                     folder = os.path.dirname(photo_attest.photo.path)
+                    # xóa index
+                    remove_image_from_index(photo_attest.photo.path)
                     # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
                     remaining_files = [f for f in os.listdir(folder) if not f.startswith('.')]
                     if not remaining_files:
@@ -698,6 +747,8 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     # remaining_files = [f for f in os.listdir(folder1) if not f.startswith('.')]
                     # if not remaining_files:
                     #     shutil.rmtree(folder1)
+                    
+                    
         
         # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
         
