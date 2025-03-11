@@ -67,12 +67,18 @@ def remove_image_from_index(image_path):
 
 def search_similar_images(image_path, threshold=0.7):
     load_index()
+    similar_images = []
     image = preprocess(Image.open(image_path)).unsqueeze(0).to(device)
     with torch.no_grad():
         vector = model.encode_image(image).cpu().numpy()
-    distances, indices = index.search(vector, len(labels))
     
-    similar_images = []
+    if not labels:  # Kiểm tra nếu labels rỗng
+        print("⚠️ Không có dữ liệu trong labels.json, không thể tìm kiếm.")
+        return similar_images
+    else:
+        distances, indices = index.search(vector, len(labels))
+    # distances, indices = index.search(vector, len(labels))
+    
     for i, idx in enumerate(indices[0]):
         if distances[0][i] < threshold:
             similar_images.append((labels[idx], image_paths[idx], distances[0][i]))
