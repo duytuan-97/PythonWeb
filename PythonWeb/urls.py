@@ -35,7 +35,7 @@ urlpatterns = [
 ]
 
 #code đổi titles trang admin
-admin.site.site_header = "Django administration 123"
+admin.site.site_header = "Quản lý tài liệu hồ sơ kiểm định CTĐT"
 admin.site.site_title = "Browser Title"
 admin.site.index_title = "Quản lý chương trình đào tạo"
 

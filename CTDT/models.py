@@ -5,6 +5,28 @@ from django.utils.translation import gettext_lazy as _
 from easy_thumbnails.files import get_thumbnailer
 from django.core.exceptions import ValidationError
 
+from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, Permission
+from django.contrib.admin.models import LogEntry
+from django.utils.translation import gettext_lazy as _
+
+from .image_utils import add_image_to_index, remove_image_from_index, search_similar_images
+from django.core.exceptions import ValidationError
+
+class ProfileUser(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    SendMailUser = models.BooleanField(default=False, verbose_name="Gửi email")
+    
+    def __str__(self):
+        return f" ({self.pk})"
+    class Meta:
+        verbose_name = "Gửi email thông báo" 
+
+#uploadfile
+class UploadedFile(models.Model):
+    file = models.FileField(upload_to='media/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
 
 #uploadfile
 class UploadedFile(models.Model):
@@ -52,6 +74,9 @@ class standard(models.Model):
     def __str__(self):
         return self.title
     class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['title'], name='unique_standard_title'),
+        ]
         verbose_name = "Tiêu chuẩn"
         verbose_name_plural = "Các tiêu chuẩn"
 
@@ -72,7 +97,7 @@ class criterion(models.Model):
         verbose_name_plural = "Các tiêu chí"
     
 class common_attest(models.Model):
-    common_attest_id = models.CharField(max_length=100, primary_key=True)
+    common_attest_id = models.CharField(max_length=100, primary_key=True, verbose_name="ID Minh chứng DC" )
     common_attest_stt = models.CharField(max_length=10, verbose_name="STT")
     
     title = models.CharField(max_length=250, verbose_name="Minh chứng")
@@ -111,14 +136,20 @@ class common_attest(models.Model):
                 "Có minh chứng độc lập đã tồn tại với thông tin này. Vui lòng kiểm tra lại."
             )
 
+    
     def save(self, *args, **kwargs):
         self.clean()  # Kiểm tra trước khi lưu
         super().save(*args, **kwargs)
     
     def delete(self, *args, **kwargs):
         """Xóa tất cả ảnh liên quan trước khi xóa Attest"""
+       
         for photo in self.photos.all():
-            photo.delete()  # Gọi delete của Photo để xóa file ảnh
+            
+            if not os.path.exists(photo.photo.path):
+                raise ValidationError(f"File {photo.photo.path} không tồn tại, có thể đã bị xóa trước đó!")
+            else:
+                photo.delete()  # Gọi delete của Photo để xóa file ảnh
         super().delete(*args, **kwargs)  # Xóa object Attest khỏi database
 
 def photo_upload_to(instance, filename):
@@ -126,7 +157,15 @@ def photo_upload_to(instance, filename):
     Tạo đường dẫn upload ảnh : 'attest/slug-cua-attest/filename'
     """
     # Nếu đã có trường slug, sử dụng nó, nếu chưa có có thể tạo tạm từ title
-    folder = instance.show.slug  
+    folder = instance.show.slug 
+    
+    # Nếu thêm hình ảnh chung 1 file có 1 mã minh chứng
+    # slug1 = instance.show.slug 
+    # if "_" in slug1:
+    #     folder = slug1.rsplit("_", 1)[0]
+    # else:
+    #     folder = slug1 
+     
     return os.path.join('attest', folder, filename)
 class PhotoCommonAttest(models.Model):
     show = models.ForeignKey(
@@ -140,9 +179,22 @@ class PhotoCommonAttest(models.Model):
     verbose_name = "Hình ảnh"
     verbose_name_plural = "Các hình ảnh"
     
+    def clean(self):
+        if self.photo:
+            similar_images = search_similar_images(self.photo.path)
+            if similar_images:
+                raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
+    
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new and self.photo:
+            add_image_to_index(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+    
     def delete(self, *args, **kwargs):
         """Xóa file ảnh thực tế trước khi xóa object"""
         if self.photo:
+            remove_image_from_index(self.photo.path)
             thumbnailURL = "./"+get_thumbnailer(self.photo)['small'].url
             if os.path.isfile(thumbnailURL):
                 os.remove(thumbnailURL)  # Xóa file ảnh khỏi hệ thống
@@ -153,7 +205,9 @@ class PhotoCommonAttest(models.Model):
                 shutil.rmtree(folder)
             
         super().delete(*args, **kwargs)  # Xóa object khỏi database
-
+    def __str__(self):
+        return _("Đối tượng ảnh '{photo}'").format(photo=self.photo)
+    
 #Model Minh chứng 
 class attest(models.Model):
     # id = models.CharField(max_length=20, primary_key=True)
@@ -184,7 +238,15 @@ class attest(models.Model):
                 attest_stt=self.attest_stt
             ).exclude(pk=self.pk).exists()
             if exists:
-                raise ValidationError("Minh chứng đã tồn tại trong minh chứng dùng chung.")
+                raise ValidationError("Minh chứng đã tồn tại trong minh chứng khác.")
+        
+            # Kiểm tra trùng với các common_attest
+            exists_in_common_attest = common_attest.objects.filter(
+                common_attest_id=self.attest_id,
+                common_attest_stt=self.attest_stt
+            ).exists()
+            if exists_in_common_attest:
+                raise ValidationError("Minh chứng đã tồn tại trong các minh chứng dùng chung.")
     
     def save(self, *args, **kwargs):
         if not self.pk:  # Nếu chưa có primary key, lưu trước
@@ -229,36 +291,57 @@ class attest(models.Model):
         if not self.is_common:
             for photo in self.photos.all():
                 photo.delete()  # Gọi delete của Photo để xóa file ảnh
-        else:
+        # else:
             # Với attest dùng chung, chỉ xóa dữ liệu trong database.
             # Gọi delete() trên QuerySet sẽ không gọi phương thức delete() của từng object,
             # do đó file ảnh sẽ không bị xóa.
-            self.photos.all().delete()
+            # self.photos.all().delete()
         super().delete(*args, **kwargs)  # Xóa object Attest khỏi database
 
+
 class PhotoAttest(models.Model):
-    show = models.ForeignKey(
-        attest, on_delete=models.CASCADE, related_name="photos"
-    )
+    show = models.ForeignKey(attest, on_delete=models.CASCADE, related_name="photos")
     photo = models.ImageField(upload_to=photo_upload_to, blank=True, verbose_name="Hình")
-    
-    def delete(self, *args, **kwargs):
-        """Xóa file ảnh thực tế trước khi xóa object"""
-        
+
+    def clean(self):
         if self.photo:
+            similar_images = search_similar_images(self.photo.path)
+            if similar_images:
+                raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new and self.photo:
+            add_image_to_index(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+    def delete(self, *args, **kwargs):
+        if self.photo and not self.show.common_attest:
+            remove_image_from_index(self.photo.path)
             thumbnailURL = "./"+get_thumbnailer(self.photo)['small'].url
             if os.path.isfile(thumbnailURL):
-                os.remove(thumbnailURL)  # Xóa file ảnh khỏi hệ thống
+                os.remove(thumbnailURL)
             if os.path.isfile(self.photo.path):
-                os.remove(self.photo.path)  # Xóa file ảnh khỏi hệ thống
+                os.remove(self.photo.path)
             folder = os.path.dirname(self.photo.path)
             if not os.listdir(folder):
                 shutil.rmtree(folder)
-                
-            
-        super().delete(*args, **kwargs)  # Xóa object khỏi database
+        super().delete(*args, **kwargs)
+
     def __str__(self):
-            return _("Đối tượng ảnh '{photo}'").format(photo=self.photo)
-    
-    verbose_name = "Hình ảnh"
-    verbose_name_plural = "Các hình ảnh"
+        return _("Đối tượng ảnh '{photo}'").format(photo=self.photo)
+
+    class Meta:
+        verbose_name = "Hình ảnh"
+        verbose_name_plural = "Các hình ảnh"
+
+# Đổi tên các quyền trong model Group
+Group._meta.verbose_name = _("Nhóm người dùng")
+Group._meta.verbose_name_plural = _("Nhóm người dùng")
+
+# Đổi tên trong model LogEntry (lịch sử thay đổi)
+LogEntry._meta.verbose_name = _("Nhật ký hệ thống")
+LogEntry._meta.verbose_name_plural = _("Nhật ký hệ thống")
+
+# Đổi tên các quyền trong Permission
+Permission._meta.verbose_name = _("Quyền hệ thống")
+Permission._meta.verbose_name_plural = _("Quyền hệ thống")

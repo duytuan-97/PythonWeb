@@ -61,7 +61,7 @@ ROOT_URLCONF = 'PythonWeb.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, "templates")], # Thêm template admin
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -176,3 +176,6 @@ THUMBNAIL_ALIASES = {
         "small": {"size": (150, 150)}
     },
 }
+
+
+THUMBNAIL_EXTENSION = 'jpg'
