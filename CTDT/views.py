@@ -104,6 +104,10 @@ def upload_file(request):
     # return render(request, 'Pages/upload.html', {'form': form})
     return render(request, 'admin/test/test.html', {'form': form})
 
+def convert_code(text):
+    parts = text.split(".")
+    return ".".join(str(int(part)) if part.isdigit() else part for part in parts)
+
 def import_word(request):
     if request.method == 'POST':
         list_attest = []
@@ -142,6 +146,7 @@ def import_word(request):
                         match = re.search(r'\d+\.\d+', tieu_chi)  # Tìm mẫu số chấm số
                         # ma_tieu_chi = match.group() if match else None
                         ma_tieu_chi = match.group() if match else None
+                        # ma_tieu_chi = convert_code(ma_tieu_chi)
                         
 
                         # Kiểm tra Box
@@ -193,6 +198,7 @@ def import_word(request):
                             print("Ghi chú có chứa ký tự 'DC'.")
                             try:
                                 # Truy vấn bản ghi dùng chung
+                                # convert_code(ma_minh_chung)
                                 common_evidence = common_attest.objects.get(common_attest_id=ma_minh_chung, body=so_ngay_ban_hanh)
                                 # common_attest_instance = common_attest.objects.get(common_attest_id=ma_minh_chung)
                                 print("Tìm thấy minh chứng dùng chung:", common_evidence)

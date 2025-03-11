@@ -6,6 +6,7 @@ from django.contrib import admin
 from django.shortcuts import redirect, render
 
 from CTDT.forms import AttestForm, CommonAttestForm
+from CTDT.image_utils import remove_image_from_index
 from CTDT.model_train.ml_model import predict_image, train_model
 
 
@@ -41,7 +42,6 @@ from django.urls import path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
 from .notifications import EmailNotification
 from .admin_convert.action_convert import ActionConvert
 from django.contrib.admin.widgets import AdminTextInputWidget 
@@ -54,12 +54,30 @@ from easy_thumbnails.files import get_thumbnailer
 from django.db import transaction
 
 
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from .models import ProfileUser
+
+
 # from django.utils.decorators import method_decorator
 # from django.contrib.admin.views.decorators import staff_member_required
 
-admin.site.register(Post)
+# admin.site.register(Post)
 
 User = get_user_model()
+
+class SendMailInline(admin.StackedInline):
+    model = ProfileUser
+    sendMailUser = False
+    
+
+# Define a new User admin
+class UserAdmin(BaseUserAdmin):
+    inlines = (SendMailInline, )
+
+# Re-register UserAdmin
+admin.site.unregister(User)
+admin.site.register(User, UserAdmin)
+
 
 @admin.action(description="Mark selected stories as published")
 def make_published(modeladmin, request, queryset):
@@ -82,6 +100,7 @@ class boxAdmin(admin.ModelAdmin):
         else :
             action_type = "Thêm mới hộp"
         admin_url = request.build_absolute_uri(reverse('admin:CTDT_box_change', args=[obj.pk]))
+        
         # EmailNotification.send_box_email(request, [obj], action_type, admin_url)
 
     def delete_model(self, request, obj):
@@ -203,6 +222,10 @@ class PhotoAttestInline(admin.TabularInline):
         """A (pseudo)field that returns an image thumbnail for a show photo."""
         tpl = get_template("admin/templates/show_thumbnail.html")
         return tpl.render({"photo": instance.photo})
+    
+    def clean_photo(self, instance):
+        if instance.photo:
+            instance.clean()  # Gọi phương thức clean của model để kiểm tra ảnh trùng lặp
 
     showphoto_thumbnail.short_description = _("Thumbnail")
 
@@ -217,6 +240,10 @@ class PhotoCommonAttestInline(admin.TabularInline):
         tpl = get_template("admin/templates/show_thumbnail.html")
         return tpl.render({"photo": instance.photo})
 
+    def clean_photo(self, instance):
+        if instance.photo:
+            instance.clean()  # Gọi phương thức clean của model để kiểm tra ảnh trùng lặp
+    
     showphoto_thumbnail.short_description = _("Thumbnail")
 
 #admin.site.register(attest)
@@ -318,20 +345,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             context['show_save_and_add_another'] = True
         return super().render_change_form(request, context, add, change, form_url, obj)
     
-    # Gửi log
-    
+
     def save_model(self, request, obj, form, change):
-        
-        # # for upload in self.files.getlist("photos"):
-        # #     predict_image(upload, request)
-        # uploads = form.cleaned_data.get("photos")
-        # if uploads:
-        #     # Nếu uploads là một danh sách file (với MultipleFileField)
-        #     # hoặc nếu chỉ có 1 file thì bọc nó lại thành list
-        #     if not isinstance(uploads, list):
-        #         uploads = [uploads]
-        #     for upload in uploads:
-        #         predict_image(upload, request)
         
         super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
         if change :
@@ -339,6 +354,7 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         else :
             action_type = "Thêm mới minh chứng"
         admin_url = request.build_absolute_uri(reverse('admin:CTDT_attest_change', args=[obj.pk]))
+        
         
         if not change and obj.common_attest : 
             # obj.is_common = bool(obj.common_attest)  # Gán True nếu common_attest có giá trị
@@ -358,15 +374,34 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         else:
             obj.is_common = False
         
+        
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
         # # # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
         # # EmailNotification.send_attest_email(request, [obj], action_type)
         # transaction.on_commit(lambda: 
         #     EmailNotification.send_attest_email(request, [obj], action_type)
         # )
         super().save_model(request, obj, form, change)
+        
+        # Xử lý các PhotoAttest instances
+        if 'photoattest_set' in form.cleaned_data:  # Kiểm tra xem có PhotoAttest instances trong form không
+            for photo in form.cleaned_data['photoattest_set']:
+                try:
+                    self.inlines[0].clean_photo(photo)  # Gọi hàm clean_photo nếu cần
+                except forms.ValidationError as e:
+                    raise forms.ValidationError(e)  # Ném lỗi nếu có vấn đề
+                photo.save()  # Lưu PhotoAttest instance
     
     def delete_model(self, request, obj):
         """ Gửi email khi xóa """
+        
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
         
         # # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
         # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng")
@@ -389,11 +424,17 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     if os.path.isfile(photo_attest.photo.path):
                         os.remove(photo_attest.photo.path)
                     folder = os.path.dirname(photo_attest.photo.path)
+                    # xóa index
+                    remove_image_from_index(photo_attest.photo.path)
                     # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
                     remaining_files = [f for f in os.listdir(folder) if not f.startswith('.')]
                     if not remaining_files:
                         shutil.rmtree(folder)
         
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
         
         # # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
         # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng")
@@ -593,7 +634,6 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             action_type = "Thêm mới minh chứng dùng chung"
         admin_url = request.build_absolute_uri(reverse('admin:CTDT_common_attest_change', args=[obj.pk]))
         
-        super().save_model(request, obj, form, change)
         # Tìm tất cả các attest liên quan tới common_attest hiện tại
         related_attests = attest.objects.filter(common_attest=obj)
         # Cập nhật các trường trong attest liên quan nếu cần
@@ -621,6 +661,15 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         # transaction.on_commit(update_photos(obj))  # Đảm bảo chạy sau khi commit database
         
         transaction.on_commit(lambda: ActionConvert.update_photos(obj))  # Đảm bảo chạy sau khi commit database
+        
+        # Xử lý các PhotoAttest instances
+        if 'photocommonattest_set' in form.cleaned_data:  # Kiểm tra xem có PhotoAttest instances trong form không
+            for photo in form.cleaned_data['photocommonattest_set']:
+                try:
+                    self.inlines[0].clean_photo(photo)  # Gọi hàm clean_photo nếu cần
+                except forms.ValidationError as e:
+                    raise forms.ValidationError(e)  # Ném lỗi nếu có vấn đề
+                photo.save()  # Lưu PhotoAttest instance
         
         # # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
         # transaction.on_commit(lambda: 
@@ -658,11 +707,18 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     if os.path.isfile(photo_attest.photo.path):
                         os.remove(photo_attest.photo.path)
                     
+                    # Kiểm tra thư mục tồn tại trước khi xóa
                     folder1 = os.path.dirname(photo_attest.photo.path)
-                    # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
-                    remaining_files = [f for f in os.listdir(folder1) if not f.startswith('.')]
-                    if not remaining_files:
+                    # xóa index
+                    remove_image_from_index(photo_attest.photo.path)
+                    if os.path.exists(folder1) and not os.listdir(folder1):  # Kiểm tra thư mục rỗng
                         shutil.rmtree(folder1)
+                    # # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
+                    # remaining_files = [f for f in os.listdir(folder1) if not f.startswith('.')]
+                    # if not remaining_files:
+                    #     shutil.rmtree(folder1)
+                    
+                    
         
         # EmailNotification.send_common_attest_email(request, queryset, "Xóa minh chứng dùng chung", "Delete")
         

@@ -3,9 +3,9 @@
 {% block object-tools-items %}
     {{ block.super }}
     {% if request.user.is_superuser %}
-        <li>
+        {% comment %} <li>
             <a href="{% url 'admin:CTDT_trainmodel' %}" class="import_link" style="background-color: #259ad0;">Train Model</a>
-        </li>
+        </li> {% endcomment %}
     {% endif %}
 {% endblock %}
 
