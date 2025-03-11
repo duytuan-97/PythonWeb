@@ -376,3 +376,5 @@ def get_common_attest_data(request, pk):
         # Thêm các trường khác nếu cần
     })
     
+def custom_admin_view(request):
+    return redirect('/admin/')  # Chuyển hướng đến trang Admin

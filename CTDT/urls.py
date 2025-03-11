@@ -13,9 +13,10 @@ urlpatterns = [
    path('posts_new_test', views.posts_new_test, name="new_test"),
    path('<slug:slug>', views.post_page, name="page"),
    #xử lý file
-   # path('upload/', views.upload_file, name='upload_file'),
-   path('/upload/', views.upload_file, name='upload_file'),
-   path('', admin.site.urls),
+   # # path('upload/', views.upload_file, name='upload_file'),
+   # path('', views.upload_file, name='upload_file'),
+   path('', views.custom_admin_view, name='admin_home'),
+   # path('', admin.site.urls),
    
    path("get_common_attest_data/<str:pk>/", views.get_common_attest_data, name="get_common_attest_data"),
 ]
