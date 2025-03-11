@@ -136,6 +136,7 @@ class common_attest(models.Model):
                 "Có minh chứng độc lập đã tồn tại với thông tin này. Vui lòng kiểm tra lại."
             )
 
+    
     def save(self, *args, **kwargs):
         self.clean()  # Kiểm tra trước khi lưu
         super().save(*args, **kwargs)
@@ -144,9 +145,11 @@ class common_attest(models.Model):
         """Xóa tất cả ảnh liên quan trước khi xóa Attest"""
        
         for photo in self.photos.all():
-            # photo.delete()  # Gọi delete của Photo để xóa file ảnh
+            
             if not os.path.exists(photo.photo.path):
                 raise ValidationError(f"File {photo.photo.path} không tồn tại, có thể đã bị xóa trước đó!")
+            else:
+                photo.delete()  # Gọi delete của Photo để xóa file ảnh
         super().delete(*args, **kwargs)  # Xóa object Attest khỏi database
 
 def photo_upload_to(instance, filename):
@@ -176,9 +179,22 @@ class PhotoCommonAttest(models.Model):
     verbose_name = "Hình ảnh"
     verbose_name_plural = "Các hình ảnh"
     
+    def clean(self):
+        if self.photo:
+            similar_images = search_similar_images(self.photo.path)
+            if similar_images:
+                raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
+    
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new and self.photo:
+            add_image_to_index(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+    
     def delete(self, *args, **kwargs):
         """Xóa file ảnh thực tế trước khi xóa object"""
         if self.photo:
+            remove_image_from_index(self.photo.path)
             thumbnailURL = "./"+get_thumbnailer(self.photo)['small'].url
             if os.path.isfile(thumbnailURL):
                 os.remove(thumbnailURL)  # Xóa file ảnh khỏi hệ thống
@@ -189,7 +205,9 @@ class PhotoCommonAttest(models.Model):
                 shutil.rmtree(folder)
             
         super().delete(*args, **kwargs)  # Xóa object khỏi database
-
+    def __str__(self):
+        return _("Đối tượng ảnh '{photo}'").format(photo=self.photo)
+    
 #Model Minh chứng 
 class attest(models.Model):
     # id = models.CharField(max_length=20, primary_key=True)
@@ -220,7 +238,15 @@ class attest(models.Model):
                 attest_stt=self.attest_stt
             ).exclude(pk=self.pk).exists()
             if exists:
-                raise ValidationError("Minh chứng đã tồn tại trong minh chứng dùng chung.")
+                raise ValidationError("Minh chứng đã tồn tại trong minh chứng khác.")
+        
+            # Kiểm tra trùng với các common_attest
+            exists_in_common_attest = common_attest.objects.filter(
+                common_attest_id=self.attest_id,
+                common_attest_stt=self.attest_stt
+            ).exists()
+            if exists_in_common_attest:
+                raise ValidationError("Minh chứng đã tồn tại trong các minh chứng dùng chung.")
     
     def save(self, *args, **kwargs):
         if not self.pk:  # Nếu chưa có primary key, lưu trước

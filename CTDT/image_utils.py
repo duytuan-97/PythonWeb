@@ -65,7 +65,8 @@ def remove_image_from_index(image_path):
         index = new_index
         save_index()
 
-def search_similar_images(image_path, threshold=0.8):
+def search_similar_images(image_path, threshold=0.7):
+    load_index()
     image = preprocess(Image.open(image_path)).unsqueeze(0).to(device)
     with torch.no_grad():
         vector = model.encode_image(image).cpu().numpy()

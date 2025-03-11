@@ -240,6 +240,10 @@ class PhotoCommonAttestInline(admin.TabularInline):
         tpl = get_template("admin/templates/show_thumbnail.html")
         return tpl.render({"photo": instance.photo})
 
+    def clean_photo(self, instance):
+        if instance.photo:
+            instance.clean()  # Gọi phương thức clean của model để kiểm tra ảnh trùng lặp
+    
     showphoto_thumbnail.short_description = _("Thumbnail")
 
 #admin.site.register(attest)
@@ -341,33 +345,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             context['show_save_and_add_another'] = True
         return super().render_change_form(request, context, add, change, form_url, obj)
     
-    # Gửi log
-    
-    # def save_formset(self, request, form, formset, change):
-    #     instances = formset.save(commit=False)
-    #     for instance in instances:
-    #         if isinstance(instance, PhotoAttest):
-    #             try:
-    #                 self.inlines[0].clean_photo(instance)
-    #             except forms.ValidationError as e:
-    #                 formset.errors.append(e)
-    #                 return
-    #         instance.save()
-    #     formset.save_m2m()
-
 
     def save_model(self, request, obj, form, change):
-        
-        # # for upload in self.files.getlist("photos"):
-        # #     predict_image(upload, request)
-        # uploads = form.cleaned_data.get("photos")
-        # if uploads:
-        #     # Nếu uploads là một danh sách file (với MultipleFileField)
-        #     # hoặc nếu chỉ có 1 file thì bọc nó lại thành list
-        #     if not isinstance(uploads, list):
-        #         uploads = [uploads]
-        #     for upload in uploads:
-        #         predict_image(upload, request)
         
         super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
         if change :
@@ -376,25 +355,6 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             action_type = "Thêm mới minh chứng"
         admin_url = request.build_absolute_uri(reverse('admin:CTDT_attest_change', args=[obj.pk]))
         
-        
-        #  # Duyệt qua tất cả formset liên quan (PhotoAttest)
-        # def save_formset(self, request, form, formset, change):
-        #     # Xóa các ảnh bị bỏ chọn trong admin
-        #     for obj in formset.deleted_objects:
-        #         if isinstance(obj, PhotoAttest):
-        #             obj.delete()  # Gọi delete() để xóa ảnh vật lý
-
-        #     instances = formset.save(commit=False)
-        #     for instance in instances:
-        #         if isinstance(instance, PhotoAttest):
-        #             try:
-        #                 self.inlines[0].clean_photo(instance)
-        #             except forms.ValidationError as e:
-        #                 formset.errors.append(e)
-        #                 return
-        #             instance.save()
-
-        #     formset.save_m2m()  # Lưu quan hệ ManyToMany nếu có
         
         if not change and obj.common_attest : 
             # obj.is_common = bool(obj.common_attest)  # Gán True nếu common_attest có giá trị
@@ -674,7 +634,6 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
             action_type = "Thêm mới minh chứng dùng chung"
         admin_url = request.build_absolute_uri(reverse('admin:CTDT_common_attest_change', args=[obj.pk]))
         
-        super().save_model(request, obj, form, change)
         # Tìm tất cả các attest liên quan tới common_attest hiện tại
         related_attests = attest.objects.filter(common_attest=obj)
         # Cập nhật các trường trong attest liên quan nếu cần
@@ -702,6 +661,15 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         # transaction.on_commit(update_photos(obj))  # Đảm bảo chạy sau khi commit database
         
         transaction.on_commit(lambda: ActionConvert.update_photos(obj))  # Đảm bảo chạy sau khi commit database
+        
+        # Xử lý các PhotoAttest instances
+        if 'photocommonattest_set' in form.cleaned_data:  # Kiểm tra xem có PhotoAttest instances trong form không
+            for photo in form.cleaned_data['photocommonattest_set']:
+                try:
+                    self.inlines[0].clean_photo(photo)  # Gọi hàm clean_photo nếu cần
+                except forms.ValidationError as e:
+                    raise forms.ValidationError(e)  # Ném lỗi nếu có vấn đề
+                photo.save()  # Lưu PhotoAttest instance
         
         # # EmailNotification.send_common_attest_email(request, [obj], action_type, admin_url)
         # transaction.on_commit(lambda: 
@@ -741,6 +709,8 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                     
                     # Kiểm tra thư mục tồn tại trước khi xóa
                     folder1 = os.path.dirname(photo_attest.photo.path)
+                    # xóa index
+                    remove_image_from_index(photo_attest.photo.path)
                     if os.path.exists(folder1) and not os.listdir(folder1):  # Kiểm tra thư mục rỗng
                         shutil.rmtree(folder1)
                     # # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)

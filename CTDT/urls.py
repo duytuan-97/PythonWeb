@@ -1,4 +1,6 @@
 from django.urls import path
+
+from django.contrib import admin
 from . import views
 
 app_name = 'posts'
@@ -12,8 +14,8 @@ urlpatterns = [
    path('<slug:slug>', views.post_page, name="page"),
    #xử lý file
    # path('upload/', views.upload_file, name='upload_file'),
-   path('', views.upload_file, name='upload_file'),
-   # path('', views.upload_file, name='upload_file'),
+   path('/upload/', views.upload_file, name='upload_file'),
+   path('', admin.site.urls),
    
    path("get_common_attest_data/<str:pk>/", views.get_common_attest_data, name="get_common_attest_data"),
 ]
