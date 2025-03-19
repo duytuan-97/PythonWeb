@@ -38,12 +38,12 @@ def dashboard_test(request):
     return render(request, 'Pages/dashboard_test.html')
 
 def posts_list_test(request):
-    posts = Post.objects.all().order_by('-date')
-    return render(request, 'Pages/posts_list_test.html', {'posts': posts})
+    post = Post.objects.all().order_by('-date')
+    return render(request, 'Pages/posts_list_test.html', {'posts': post})
 
 def post_page(request, slug):
     post = Post.objects.get(slug=slug)
-    return render(request, 'Pages/post_page_test.html', {'post': post})
+    return render(request, 'Pages/post_page_test.html', {'posts': post})
 
 
 # xác thực mới vào trang được

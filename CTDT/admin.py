@@ -7,7 +7,7 @@ from django.shortcuts import redirect, render
 
 from CTDT.forms import AttestForm, CommonAttestForm
 from CTDT.image_utils import remove_image_from_index
-from CTDT.model_train.ml_model import predict_image, train_model
+# from CTDT.model_train.ml_model import predict_image, train_model
 
 
 # from CTDT import forms
@@ -252,26 +252,6 @@ class PhotoCommonAttestInline(admin.TabularInline):
 class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     change_list_template = "admin/CTDT/attest/change_list.html"
-
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path('train-model/', self.admin_site.admin_view(self.train_model_view), name='CTDT_trainmodel'),
-        ]
-        return custom_urls + urls
-    # @method_decorator(staff_member_required)
-    def train_model_view(self, request):
-        # Xử lý logic train model ở đây
-        if request.method == "POST":
-            # Giả sử hàm train_model() thực hiện quá trình train mô hình
-            try:
-                train_model(request)
-                dj_messages.success(request, "Mô hình đã được train lại thành công.")
-            except Exception as e:
-                dj_messages.error(request, f"Lỗi train mô hình: {e}")
-            return redirect("..")
-        return render(request, "admin/train_model.html", context={})
-    
     
     form = AttestForm
     inlines = [PhotoAttestInline]
@@ -296,25 +276,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     search_fields = ('title', 'performer')
     # prepopulated_fields = {'slug': ['attest_id','attest_stt']}
     
-    # def get_readonly_fields(self, request, obj=None):
-    #     """
-    #     Làm cho tất cả các trường readonly nếu đây là minh chứng dùng chung.
-    #     """
-    #     if obj and obj.common_attest is not None:  # Nếu có liên kết với common_attest
-    #         # Lấy danh sách các trường có trong form
-    #         form_fields = [field.name for field in self.model._meta.fields]
-    #         # Loại bỏ các trường không được quản lý bởi form
-    #         readonly_fields = [field for field in form_fields if field in self.form.declared_fields]
-    #         return readonly_fields
-    #     return super().get_readonly_fields(request, obj)
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        # if obj:
-        #     if obj.common_attest is not None:  # Nếu là minh chứng dùng chung
-        #         for field_name in form.base_fields:
-        #             form.base_fields[field_name].disabled = True  # Vô hiệu hóa trường
-        # else:
-        #     form.base_fields['is_common'].disabled = True
         if obj:
             if obj.common_attest is not None:  # Nếu là minh chứng dùng chung
                 for field_name in form.base_fields:
@@ -324,10 +287,6 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
                 form.base_fields['is_common'].disabled = True
                 if 'photos' in form.base_fields:
                     form.base_fields['photos'].disabled = False
-        # else:
-        #     form.base_fields['is_common'].disabled = True
-        # return form
-        # Tạo lớp con để override __init__ và truyền request vào form
         class FormWithRequest(form):
             def __init__(self2, *args, **inner_kwargs):
                 inner_kwargs['request'] = request

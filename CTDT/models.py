@@ -28,11 +28,6 @@ class UploadedFile(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
 
-#uploadfile
-class UploadedFile(models.Model):
-    file = models.FileField(upload_to='media/')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
 
 # Create your models here.
 class Post(models.Model):

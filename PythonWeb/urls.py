@@ -29,7 +29,7 @@ urlpatterns = [
     # path('admin/test', TemplateView.as_view(template_name='admin/test/test.html')),
     path('admin/', admin.site.urls),
     path('', include('CTDT.urls')),
-    path('CTDT/', include('CTDT.urls')),
+    # path('CTDT/', include('CTDT.urls')),
     path('users/', include('users.urls')),
     
 ]
