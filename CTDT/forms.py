@@ -1,7 +1,7 @@
 from django import forms
 
 from CTDT.image_utils import search_similar_images
-from CTDT.model_train.ml_model import predict_image
+# from CTDT.model_train.ml_model import predict_image
 from .models import PhotoAttest, PhotoCommonAttest, UploadedFile, attest, common_attest
 
 from django.core.validators import validate_image_file_extension
