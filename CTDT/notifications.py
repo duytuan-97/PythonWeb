@@ -180,7 +180,8 @@ class EmailNotification:
                     <ul>
             """
         for obj in objects:
-            attest_obj = attest.objects.get(attest_id=obj.attest_id,attest_stt=obj.attest_stt)
+            # attest_obj = attest.objects.get(attest_id=obj.attest_id,attest_stt=obj.attest_stt)
+            attest_obj = attest.objects.filter(attest_id=obj.attest_id, attest_stt=obj.attest_stt).first()
             admin_url = request.build_absolute_uri(reverse('admin:CTDT_attest_change', args=[attest_obj.id]))
             subject += f"{obj.attest_id}; "
             message += f"ID: {obj.attest_id}\n"

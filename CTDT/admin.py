@@ -1,9 +1,11 @@
+# Fixx delete photo: kiểm tra hình ảnh, không xóa hình ảnh của minh chứng dùng chung khi xóa minh chứng
 import os
 import shutil
 from django.contrib import messages as dj_messages
 from django import forms
 from django.contrib import admin
 from django.shortcuts import redirect, render
+from django.db.models import Count
 
 from CTDT.forms import AttestForm, CommonAttestForm
 from CTDT.image_utils import remove_image_from_index
@@ -56,6 +58,9 @@ from django.db import transaction
 
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import ProfileUser
+
+from .image_utils import search_similar_images
+from django.core.exceptions import ValidationError
 
 
 # from django.utils.decorators import method_decorator
@@ -225,7 +230,10 @@ class PhotoAttestInline(admin.TabularInline):
     
     def clean_photo(self, instance):
         if instance.photo:
-            instance.clean()  # Gọi phương thức clean của model để kiểm tra ảnh trùng lặp
+            # instance.clean()  # Gọi phương thức clean của model để kiểm tra ảnh trùng lặp
+            similar_images = search_similar_images(self.photo.path)
+            if similar_images:
+                raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
 
     showphoto_thumbnail.short_description = _("Thumbnail")
 
@@ -242,14 +250,17 @@ class PhotoCommonAttestInline(admin.TabularInline):
 
     def clean_photo(self, instance):
         if instance.photo:
-            instance.clean()  # Gọi phương thức clean của model để kiểm tra ảnh trùng lặp
+            # instance.clean()  # Gọi phương thức clean của model để kiểm tra ảnh trùng lặp
+            similar_images = search_similar_images(self.photo.path)
+            if similar_images:
+                raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
     
     showphoto_thumbnail.short_description = _("Thumbnail")
 
 #admin.site.register(attest)
 @admin.register(attest)
-# class attestAdmin(admin.ModelAdmin):
-class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+class attestAdmin(admin.ModelAdmin):
+# class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     change_list_template = "admin/CTDT/attest/change_list.html"
     
@@ -259,8 +270,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
         form.save_photos(form.instance)
-    
-    list_display = ('criterion_name', 'attest_id_name','attest_stt', 'title', 'body', 'performer')
+    # exclude = {'is_common',}
+    list_display = ('criterion_name', 'attest_id_name','attest_stt', 'title', 'body', 'performer', "is_common")
     list_display_links = ('title',)
     list_filter = (
         #'criterion',
@@ -275,6 +286,11 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     ordering = ( 'attest_id','attest_stt')
     search_fields = ('title', 'performer')
     # prepopulated_fields = {'slug': ['attest_id','attest_stt']}
+    
+    # def get_readonly_fields(self, request, obj=None):
+    #     if obj:  # Trang chỉnh sửa (change)
+    #         return self.readonly_fields + ('attest_id',)
+    #     return self.readonly_fields
     
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -372,7 +388,13 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         # delete photo
         for attest in queryset:
             for photo_attest in attest.photos.all():  # Lấy ảnh liên kết
-                if photo_attest.photo:
+                if photo_attest.photo and not common_attest:
+                    
+                    # # Kiểm tra xem ảnh có được sử dụng bởi các attest khác hay không
+                    # photo_usage_count = photo_attest.photo.attestphoto_set.aggregate(Count('id'))['id__count']
+                    
+                    # # Chỉ xóa ảnh nếu ảnh không được sử dụng bởi attest nào khác
+                    # if photo_usage_count <= 1:
                     try:
                         thumbnail_path = get_thumbnailer(photo_attest.photo)['small'].path
                         if os.path.isfile(thumbnail_path):
@@ -552,7 +574,8 @@ class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
         return response
 
 @admin.register(common_attest)
-class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+# class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+class common_attestAdmin(admin.ModelAdmin):
     form = CommonAttestForm
     inlines = [PhotoCommonAttestInline]
     
@@ -581,7 +604,9 @@ class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     class Media:
         js = ('../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js')  # Đường dẫn file JS
-    
+        css = {
+            'all': ('../static/css/custom_admin.css',)
+        }
     def save_model(self, request, obj, form, change):
         """
         Ghi đè save_model cập nhật tất cả các attest liên kết với common_attest.

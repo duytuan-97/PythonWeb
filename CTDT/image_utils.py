@@ -1,6 +1,7 @@
 import os
 import json
 import faiss
+import numpy as np
 import torch
 import clip
 from PIL import Image
@@ -48,6 +49,23 @@ def add_image_to_index(image_path, label):
     except Exception as e:
         print(f"Lỗi khi thêm ảnh {image_path}: {e}")
 
+# def remove_image_from_index(image_path):
+#     global index, labels, image_paths
+#     if image_path in image_paths:
+#         idx = image_paths.index(image_path)
+#         del labels[idx]
+#         del image_paths[idx]
+        
+#         new_index = faiss.IndexFlatL2(512)
+#         for path in image_paths:
+#             image = preprocess(Image.open(path)).unsqueeze(0).to(device)
+#             with torch.no_grad():
+#                 vector = model.encode_image(image).cpu().numpy()
+#             new_index.add(vector)
+        
+#         index = new_index
+#         save_index()
+
 def remove_image_from_index(image_path):
     global index, labels, image_paths
     if image_path in image_paths:
@@ -57,13 +75,45 @@ def remove_image_from_index(image_path):
         
         new_index = faiss.IndexFlatL2(512)
         for path in image_paths:
-            image = preprocess(Image.open(path)).unsqueeze(0).to(device)
-            with torch.no_grad():
-                vector = model.encode_image(image).cpu().numpy()
-            new_index.add(vector)
+            if os.path.exists(path):  # ✅ Thêm kiểm tra này
+                try:
+                    image = preprocess(Image.open(path)).unsqueeze(0).to(device)
+                    with torch.no_grad():
+                        vector = model.encode_image(image).cpu().numpy()
+                    new_index.add(vector)
+                except Exception as e:
+                    print(f"⚠️ Lỗi xử lý ảnh {path}: {e}")
+            else:
+                print(f"⚠️ File không tồn tại, bỏ qua: {path}")
         
         index = new_index
         save_index()
+
+# def search_similar_images(image_path, threshold=0.7):
+#     load_index()
+#     similar_images = []
+#     image = preprocess(Image.open(image_path)).unsqueeze(0).to(device)
+#     with torch.no_grad():
+#         vector = model.encode_image(image).cpu().numpy()
+    
+#     if not labels:  # Kiểm tra nếu labels rỗng
+#         print("⚠️ Không có dữ liệu trong labels.json, không thể tìm kiếm.")
+#         return similar_images
+#     else:
+#         distances, indices = index.search(vector, len(labels))
+#     # distances, indices = index.search(vector, len(labels))
+    
+#     # for i, idx in enumerate(indices[0]):
+#     #     if distances[0][i] < threshold:
+#     #         similar_images.append((labels[idx], image_paths[idx], distances[0][i]))
+#     for i, idx in enumerate(indices[0]):
+#         if idx < len(labels) and idx < len(image_paths):
+#             if distances[0][i] < threshold:
+#                 similar_images.append((labels[idx], image_paths[idx], distances[0][i]))
+#         else:
+#             print(f"⚠️ Lỗi: idx={idx} vượt quá labels/image_paths. Tổng số labels={len(labels)}.")
+    
+#     return similar_images
 
 def search_similar_images(image_path, threshold=0.7):
     load_index()
@@ -71,19 +121,67 @@ def search_similar_images(image_path, threshold=0.7):
     image = preprocess(Image.open(image_path)).unsqueeze(0).to(device)
     with torch.no_grad():
         vector = model.encode_image(image).cpu().numpy()
-    
-    if not labels:  # Kiểm tra nếu labels rỗng
-        print("⚠️ Không có dữ liệu trong labels.json, không thể tìm kiếm.")
+
+    if not labels or not image_paths or index.ntotal == 0:
+        print("⚠️ Không có dữ liệu trong index hoặc labels, không thể tìm kiếm.")
         return similar_images
-    else:
-        distances, indices = index.search(vector, len(labels))
-    # distances, indices = index.search(vector, len(labels))
-    
+
+    distances, indices = index.search(vector, len(labels))
+
     for i, idx in enumerate(indices[0]):
-        if distances[0][i] < threshold:
-            similar_images.append((labels[idx], image_paths[idx], distances[0][i]))
-    
+        if idx < len(labels) and idx < len(image_paths):
+            if distances[0][i] < threshold:
+                similar_images.append((labels[idx], image_paths[idx], distances[0][i]))
+        else:
+            print(f"⚠️ Lỗi: idx={idx} vượt quá giới hạn. labels={len(labels)}, image_paths={len(image_paths)}")
+
     return similar_images
+
+
+
+
+# Hàm kiểm tra và chỉ thêm nếu không trùng
+
+def check_and_add_image(image_path, label, threshold=0.7):
+    similar_images = search_similar_images(image_path, threshold)
+    if similar_images:
+        print("⚠️ Ảnh đã tồn tại:", similar_images)
+        return False
+    add_image_to_index(image_path, label)
+    return True
+
+def clean_index():
+    global index, labels, image_paths
+    print("🧹 Đang dọn dẹp index...")
+
+    valid_labels = []
+    valid_paths = []
+    valid_vectors = []
+
+    for label, path in zip(labels, image_paths):
+        if os.path.exists(path):
+            try:
+                image = preprocess(Image.open(path)).unsqueeze(0).to(device)
+                with torch.no_grad():
+                    vector = model.encode_image(image).cpu().numpy()
+                valid_labels.append(label)
+                valid_paths.append(path)
+                valid_vectors.append(vector)
+            except Exception as e:
+                print(f"⚠️ Lỗi xử lý ảnh {path}: {e}")
+        else:
+            print(f"⚠️ File không tồn tại, bỏ qua: {path}")
+
+    # Tạo index mới
+    index = faiss.IndexFlatL2(512)
+    if valid_vectors:
+        index.add(np.vstack(valid_vectors))
+
+    labels = valid_labels
+    image_paths = valid_paths
+    save_index()
+    print(f"✅ Dọn dẹp xong. Còn lại {len(labels)} ảnh.")
 
 # Load index khi khởi động
 load_index()
+clean_index()

@@ -15,6 +15,8 @@ import re
 
 from .notifications import EmailNotification
 
+import traceback
+
 
 # Create your views here.
 def index(request):
@@ -180,14 +182,18 @@ def import_word(request):
                         # Kiểm tra Minh chứng (Attest)
                         ma_minh_chung = ma_minh_chung.strip()
                         so_ngay_ban_hanh = so_ngay_ban_hanh.strip()
-                        if attest.objects.filter(attest_id=ma_minh_chung, body=so_ngay_ban_hanh).exists():
+                        if attest.objects.filter(attest_id=ma_minh_chung, body=so_ngay_ban_hanh, criterion=criterion1).exists():
                             messages.warning(request, f"Minh chứng {ma_minh_chung} đã tồn tại.")
                             continue
                         if attest.objects.filter(attest_id=ma_minh_chung).exists():
                             stt += 1
                         else:
                             stt = 1
-
+                        # stt = (
+                        #     attest.objects
+                        #     .filter(attest_id=ma_minh_chung, criterion=criterion1)
+                        #     .count() + 1
+                        # )
                         
                         # Kiểm tra minh chứng dùng chung
                         match = re.search(r'\bDC\b', ghi_chu)
@@ -199,7 +205,11 @@ def import_word(request):
                             try:
                                 # Truy vấn bản ghi dùng chung
                                 # convert_code(ma_minh_chung)
-                                common_evidence = common_attest.objects.get(common_attest_id=ma_minh_chung, body=so_ngay_ban_hanh)
+                                # common_evidence = common_attest.objects.get(common_attest_id=ma_minh_chung, body=so_ngay_ban_hanh)
+                                common_evidence = common_attest.objects.filter(
+                                    common_attest_id=ma_minh_chung,
+                                    body=so_ngay_ban_hanh
+                                ).first()
                                 # common_attest_instance = common_attest.objects.get(common_attest_id=ma_minh_chung)
                                 print("Tìm thấy minh chứng dùng chung:", common_evidence)
                             except common_attest.DoesNotExist:
@@ -224,7 +234,7 @@ def import_word(request):
                             if differences:
                                 messages.error(request, "Có sự khác biệt trong các trường sau:")
                                 for field, (common_value, word_value) in differences.items():
-                                    messages.error(f"{field}: Dùng chung = '{common_value}', Từ Word = '{word_value}'")
+                                    messages.error(request, f"{field}: Dùng chung = '{common_value}', Từ Word = '{word_value}'")
                                 return render(request, 'admin/import_word.html')
                             is_common1 = True
                         #Lỗi trùng dữ liệu với code : common_attest = common_evidence
@@ -264,6 +274,8 @@ def import_word(request):
                 messages.error(request, "Không tìm thấy bảng nào trong file DOCX.")
 
         except Exception as e:
+            traceback_str = traceback.format_exc()
+            print(traceback_str)
             messages.error(request, f"error: {e}")
     # else:
     #     form = FileUploadForm()
