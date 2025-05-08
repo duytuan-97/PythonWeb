@@ -165,8 +165,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Looking to send emails in production? Check out our Email API/SMTP product!
 EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_HOST_USER = 'db8c56d61c5999'
-EMAIL_HOST_PASSWORD = '922392eb11c528'
+EMAIL_HOST_USER = 'cac66c28e73675'
+EMAIL_HOST_PASSWORD = 'e17ba893121fbe'
 EMAIL_PORT = '2525'
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

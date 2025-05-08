@@ -283,102 +283,221 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    if (currentURL.includes('/attest/add/') && !commonAttestField.value) {
-        (function($) {
-            $(document).ready(function() {
-        
-                function clearValidationErrors() {
-                    // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
-                    $(".errornote").remove();
-                    $(".errorlist").remove();  // Xóa danh sách lỗi
-                    $(".errors").removeClass("errors");  // Xóa class lỗi khỏi input
-                
-                    // 🔹 Xóa toàn bộ CSS lỗi của tất cả các input
-                    $("input, select, textarea").each(function () {
-                        $(this).removeAttr("style"); // Xóa toàn bộ style inline
-                        $(this).removeClass("error"); // Xóa class lỗi nếu có
+    (function($) {
+        $(document).ready(function() {
+            const currentURL = window.location.href;
+            const isAdd = currentURL.includes('/attest/add/');
+            const isChange = currentURL.includes('/attest/') && currentURL.includes('/change/');
+            const commonAttestField = $("#id_common_attest");
+    
+            // const attestIDField = $("#id_attest_id");
+            
+
+            // if (currentURL.includes("/attest/") && attestIDField.prop("readonly")) {
+            //     // Tạm thời bỏ readonly để JS sửa được
+            //     attestIDField.prop("readonly", false);
+            //     attestIDField.attr("data-js-controlled", "true");
+            //     attestIDField.css("background-color", "#f0f0f0"); // Cho người dùng biết ô này không sửa tay
+            //     attestIDField.on("keydown", function(e) {
+            //         // Ngăn người dùng gõ tay vào
+            //         e.preventDefault();
+            //     });
+            // }
+
+            function clearValidationErrors() {
+                $(".errornote, .errorlist").remove();
+                $(".errors").removeClass("errors");
+                $("input, select, textarea").each(function () {
+                    $(this).removeAttr("style").removeClass("error");
+                });
+            }
+    
+            function getLastNumberFromID(id) {
+                if (id && id.startsWith("H") && id.split(".").length >= 3) {
+                    let parts = id.split(".");
+                    return parts[parts.length - 1];
+                }
+                return "";
+            }
+    
+            function updateAttestID(keepLastNumber = false) {
+                // const hasPhotos = photoThumbnails.length > 0;
+                let id_box = $("#id_box").val();
+                let id_criterion = $("#id_criterion").val();
+                let current_id = $("#id_attest_id").val();
+                let last = getLastNumberFromID(current_id);
+    
+                // if(hasPhotos){
+                //     alert("Để thay đổi ID cần xóa hết hình ảnh!");
+                // }else 
+                if (id_box && id_criterion && !commonAttestField.val()) {
+                    let new_id = "H" + id_box + "." + id_criterion;
+                    if (keepLastNumber && last) {
+                        new_id += "." + last;
+
+                    } else {
+                        new_id += ".";
+                    }
+                    $("#id_attest_id").val(new_id);
+                }
+            }
+    
+            function validateAttestID(event) {
+                let attestIDField = $("#id_attest_id");
+                let noteField = $("#id_note");
+                let attestID = $("#id_attest_id").val();
+                let note = $("#id_note").val();
+    
+                if (attestID.endsWith(".")) {
+                    alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+                    attestIDField.css("border", "2px solid red");
+                    event.preventDefault();
+                } else if (note.endsWith("DC")) {
+                    alert("Vui lòng hiệu chỉnh lại ghi chú !!!");
+                    noteField.css("border", "2px solid red");
+                    event.preventDefault();
+                }
+            }
+    
+            // Áp dụng sự kiện theo trang
+            if ((isAdd || isChange) && !commonAttestField.val()) {
+                $("#id_box, #id_criterion").on("keyup change", function() {
+                    updateAttestID(keepLastNumber = isChange);
+                });
+            }
+            if(isChange){
+                const attestIDField = document.getElementById("id_attest_id");
+                if (attestIDField) {
+                    attestIDField.setAttribute("readonly", true);
+                    attestIDField.style.backgroundColor = "#eee";
+                }
+            }
+    
+            $("input[type='submit']").on("click", validateAttestID);
+            $("#id_common_attest").on("keyup change", clearValidationErrors);
+    
+            // Xử lý logic khi chọn common_attest
+            $("#id_common_attest").on("change", function() {
+                var newValue = $(this).val();
+                if (newValue) {
+                    $("#id_box, #id_criterion").off("keyup change", updateAttestID);
+    
+                    $("#id_criterion").on("blur", function() {
+                        var attestCriterion = $(this).val();
+                        if (attestCriterion === attest_ctiretion) {
+                            alert("Criterion của attest phải khác với Criterion của common_attest!");
+                            $(this).css("border", "2px solid red");
+                        } else {
+                            $(this).css("border", "");
+                        }
+                    });
+                } else {
+                    // Nếu không dùng common_attest thì gắn lại sự kiện cập nhật ID
+                    $("#id_box, #id_criterion").on("keyup change", function() {
+                        updateAttestID(keepLastNumber = isChange);
                     });
                 }
+            });
+        });
+    })(django.jQuery);
+    
+
+    // if (currentURL.includes('/attest/add/') && !commonAttestField.value) {
+    //     (function($) {
+    //         $(document).ready(function() {
+        
+    //             function clearValidationErrors() {
+    //                 // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
+    //                 $(".errornote").remove();
+    //                 $(".errorlist").remove();  // Xóa danh sách lỗi
+    //                 $(".errors").removeClass("errors");  // Xóa class lỗi khỏi input
+                
+    //                 // 🔹 Xóa toàn bộ CSS lỗi của tất cả các input
+    //                 $("input, select, textarea").each(function () {
+    //                     $(this).removeAttr("style"); // Xóa toàn bộ style inline
+    //                     $(this).removeClass("error"); // Xóa class lỗi nếu có
+    //                 });
+    //             }
                 
 
-                function updateAttestID() {
-                    let id_box = $("#id_box").val();
-                    let id_criterion = $("#id_criterion").val();
-                    console.log("Tìm thấy phần tử id_box!", id_box);
-                    console.log("Tìm thấy phần tử id_criterion!", id_criterion);
-                    if (id_box && id_criterion) {
-                        $("#id_attest_id").val("H" + id_box + "." + id_criterion + ".");
-                        console.log("H" + id_box + "." + id_criterion );
-                    }
-                }
+    //             function updateAttestID() {
+    //                 let id_box = $("#id_box").val();
+    //                 let id_criterion = $("#id_criterion").val();
+    //                 console.log("Tìm thấy phần tử id_box!", id_box);
+    //                 console.log("Tìm thấy phần tử id_criterion!", id_criterion);
+    //                 if (id_box && id_criterion) {
+    //                     $("#id_attest_id").val("H" + id_box + "." + id_criterion + ".");
+    //                     console.log("H" + id_box + "." + id_criterion );
+    //                 }
+    //             }
     
-                function validateAttestID(event) {
-                    let attestIDField = $("#id_attest_id");
-                    let noteField = $("#id_note");
-                    let attestID = $("#id_attest_id").val();
-                    let note = $("#id_note").val();
-                    if (attestID.endsWith(".")) {
-                        alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
-                        attestIDField.css("border", "2px solid red");  // 🔹 Tô viền đỏ
-                        event.preventDefault();  // Ngăn không cho lưu
-                    }else if (note.endsWith("DC")) {
-                        alert("Vui lòng hiệu chỉnh lại ghi chú !!!");
-                        noteField.css("border", "2px solid red");  // 🔹 Tô viền đỏ
-                        event.preventDefault();  // Ngăn không cho lưu
-                    }
+    //             function validateAttestID(event) {
+    //                 let attestIDField = $("#id_attest_id");
+    //                 let noteField = $("#id_note");
+    //                 let attestID = $("#id_attest_id").val();
+    //                 let note = $("#id_note").val();
+    //                 if (attestID.endsWith(".")) {
+    //                     alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+    //                     attestIDField.css("border", "2px solid red");  // 🔹 Tô viền đỏ
+    //                     event.preventDefault();  // Ngăn không cho lưu
+    //                 }else if (note.endsWith("DC")) {
+    //                     alert("Vui lòng hiệu chỉnh lại ghi chú !!!");
+    //                     noteField.css("border", "2px solid red");  // 🔹 Tô viền đỏ
+    //                     event.preventDefault();  // Ngăn không cho lưu
+    //                 }
                     
-                }
+    //             }
         
-                // $("#id_box, #id_criterion").on("keyup change", updateAttestID);
+    //             // $("#id_box, #id_criterion").on("keyup change", updateAttestID);
 
-                console.log("_______common_attest value:", $("#id_common_attest").val());
-                if (!$("#id_common_attest").val()) {
-                    $("#id_box, #id_criterion").on("keyup change", updateAttestID);
-                }
-                $("input[type='submit']").on("click", validateAttestID);
-                $("#id_common_attest").on("keyup change", clearValidationErrors);
+    //             console.log("_______common_attest value:", $("#id_common_attest").val());
+    //             if (!$("#id_common_attest").val()) {
+    //                 $("#id_box, #id_criterion").on("keyup change", updateAttestID);
+    //             }
+    //             $("input[type='submit']").on("click", validateAttestID);
+    //             $("#id_common_attest").on("keyup change", clearValidationErrors);
 
-                $("#id_common_attest").on("change", function() {
-                    var newValue = $(this).val();
-                    console.log("common_attest thay đổi:", newValue);
-                    if (newValue) {
+    //             $("#id_common_attest").on("change", function() {
+    //                 var newValue = $(this).val();
+    //                 console.log("common_attest thay đổi:", newValue);
+    //                 if (newValue) {
 
-                        // console.log("11111 Ẩn checkbox..............!");
-                        // document.querySelectorAll("td.delete input[type='checkbox']").forEach(function(checkbox) {
-                        //     // Ẩn checkbox thông qua style, hoặc thay đổi attribute hidden
-                        //     console.log("Ẩn checkbox..............!");
-                        //     checkbox.style.display = "none";
-                        //     // checkbox.setAttribute("hidden", "hidden");
-                        // });
+    //                     // console.log("11111 Ẩn checkbox..............!");
+    //                     // document.querySelectorAll("td.delete input[type='checkbox']").forEach(function(checkbox) {
+    //                     //     // Ẩn checkbox thông qua style, hoặc thay đổi attribute hidden
+    //                     //     console.log("Ẩn checkbox..............!");
+    //                     //     checkbox.style.display = "none";
+    //                     //     // checkbox.setAttribute("hidden", "hidden");
+    //                     // });
 
                         
 
-                        // Nếu có giá trị, gỡ bỏ sự kiện cho id_box, id_criterion
-                        $("#id_box, #id_criterion").off("keyup change", updateAttestID);
+    //                     // Nếu có giá trị, gỡ bỏ sự kiện cho id_box, id_criterion
+    //                     $("#id_box, #id_criterion").off("keyup change", updateAttestID);
 
-                        $("#id_criterion").on("blur", function() {
-                            // Nếu đã chọn common_attest
+    //                     $("#id_criterion").on("blur", function() {
+    //                         // Nếu đã chọn common_attest
                             
-                            var attestCriterion = $(this).val();
+    //                         var attestCriterion = $(this).val();
                             
-                            // var commonCriterion = $("#id_common_criterion").val(); // giá trị này cần đảm bảo được render trên giao diện, hoặc bạn có thể truyền qua data attribute
-                            if (attestCriterion === attest_ctiretion) {
-                                alert("Criterion của attest phải khác với Criterion của common_attest!");
-                                $(this).css("border", "2px solid red");
-                                // Bạn có thể xóa hoặc focus lại vào input để yêu cầu nhập lại
-                            } else {
-                                $(this).css("border", "");
-                            }
-                        });
+    //                         // var commonCriterion = $("#id_common_criterion").val(); // giá trị này cần đảm bảo được render trên giao diện, hoặc bạn có thể truyền qua data attribute
+    //                         if (attestCriterion === attest_ctiretion) {
+    //                             alert("Criterion của attest phải khác với Criterion của common_attest!");
+    //                             $(this).css("border", "2px solid red");
+    //                             // Bạn có thể xóa hoặc focus lại vào input để yêu cầu nhập lại
+    //                         } else {
+    //                             $(this).css("border", "");
+    //                         }
+    //                     });
 
-                    } else {
-                        // Nếu rỗng, gắn lại sự kiện
-                        $("#id_box, #id_criterion").on("keyup change", updateAttestID);
-                    }
-                });
-            });
-        })(django.jQuery);
-    }
+    //                 } else {
+    //                     // Nếu rỗng, gắn lại sự kiện
+    //                     $("#id_box, #id_criterion").on("keyup change", updateAttestID);
+    //                 }
+    //             });
+    //         });
+    //     })(django.jQuery);
+    // }
     // Lắng nghe sự kiện thay đổi trên trường common_attest
     if (commonAttestField) {
 
@@ -410,51 +529,180 @@ document.addEventListener("DOMContentLoaded", function () {
 
     toggleFields(true);
 
-    if (currentURL.includes('/common_attest/add/')) {
+    if (currentURL.includes('/common_attest/')) {
         (function($) {
             $(document).ready(function() {
-
-                // alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
                 function clearValidationErrors() {
-                    // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
-                    $(".errornote").remove();
-                    $(".errorlist").remove();  // Xóa danh sách lỗi
-                    $(".errors").removeClass("errors");  // Xóa class lỗi khỏi input
-                
-                    // 🔹 Xóa toàn bộ CSS lỗi của tất cả các input
+                    $(".errornote, .errorlist").remove();
+                    $(".errors").removeClass("errors");
                     $("input, select, textarea").each(function () {
-                        $(this).removeAttr("style"); // Xóa toàn bộ style inline
-                        $(this).removeClass("error"); // Xóa class lỗi nếu có
+                        $(this).removeAttr("style").removeClass("error");
                     });
                 }
-                
-
-                function updateCommonAttestID() {
+        
+                function getLastNumberFromID(id) {
+                    if (id && id.startsWith("H") && id.split(".").length >= 3) {
+                        let parts = id.split(".");
+                        return parts[parts.length - 1]; // Lấy phần số cuối
+                    }
+                    return "";  // fallback
+                }
+        
+                function updateCommonAttestID(keepLastNumber = false) {
                     let id_box = $("#id_box").val();
                     let id_criterion = $("#id_criterion").val();
-                    // console.log("Tìm thấy phần tử id_box!", id_box);
-                    // console.log("Tìm thấy phần tử id_criterion!", id_criterion);
+                    let current_id = $("#id_common_attest_id").val();
+                    let last = getLastNumberFromID(current_id);
+        
                     if (id_box && id_criterion) {
-                        $("#id_common_attest_id").val("H" + id_box + "." + id_criterion + ".");
-                        console.log("H" + id_box + "." + id_criterion );
+                        let new_id = "H" + id_box + "." + id_criterion;
+                        if (keepLastNumber && last) {
+                            new_id += "." + last;
+                        } else {
+                            new_id += ".";  // Dành cho trang add
+                        }
+                        $("#id_common_attest_id").val(new_id);
                     }
                 }
-    
+        
                 function validateCommonAttestID(event) {
                     let common_attestID = $("#id_common_attest_id").val();
                     if (common_attestID.endsWith(".")) {
                         alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
-                        event.preventDefault();  // Ngăn không cho lưu
+                        event.preventDefault();
                     }
                 }
+
+                function makeSelectReadOnly(selectElementId) {
+                    const selectEl = document.getElementById(selectElementId);
+                    if (!selectEl) return;
+                
+                    const hiddenInput = document.createElement("input");
+                    hiddenInput.type = "hidden";
+                    hiddenInput.name = selectEl.name;
+                    hiddenInput.value = selectEl.value;
+                
+                    selectEl.parentNode.appendChild(hiddenInput);
+                    selectEl.disabled = true;
+                    selectEl.style.backgroundColor = "#eee";
+                }
         
-                $("#id_box, #id_criterion").on("keyup change", updateCommonAttestID);
-                $("input[type='submit']").on("click", validateCommonAttestID);
-                $("#id_box").on("keyup change", clearValidationErrors);
-                $("#id_criterion").on("keyup change", clearValidationErrors);
+                // Phân biệt add và change
+                let currentURL = window.location.href;
+                let isAdd = currentURL.includes('/common_attest/add/');
+                let isChange = currentURL.includes('/common_attest/') && currentURL.includes('/change/');
+        
+                if (isAdd || isChange) {
+                    $("#id_box, #id_criterion").on("keyup change", function() {
+                        updateCommonAttestID(keepLastNumber = isChange);
+                    });
+        
+                    $("input[type='submit']").on("click", validateCommonAttestID);
+                    $("#id_box, #id_criterion").on("keyup change", clearValidationErrors);
+                }
+                if(isChange){
+                    makeSelectReadOnly("id_common_attest_id");
+                    makeSelectReadOnly("id_box");
+                    makeSelectReadOnly("id_criterion");
+                }
             });
         })(django.jQuery);
+        
     }
+
+    // if (currentURL.includes('/common_attest/add/')) {
+    //     (function($) {
+    //         $(document).ready(function() {
+
+    //             // alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+    //             function clearValidationErrors() {
+    //                 // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
+    //                 $(".errornote").remove();
+    //                 $(".errorlist").remove();  // Xóa danh sách lỗi
+    //                 $(".errors").removeClass("errors");  // Xóa class lỗi khỏi input
+                
+    //                 // 🔹 Xóa toàn bộ CSS lỗi của tất cả các input
+    //                 $("input, select, textarea").each(function () {
+    //                     $(this).removeAttr("style"); // Xóa toàn bộ style inline
+    //                     $(this).removeClass("error"); // Xóa class lỗi nếu có
+    //                 });
+    //             }
+                
+
+    //             function updateCommonAttestID() {
+    //                 let id_box = $("#id_box").val();
+    //                 let id_criterion = $("#id_criterion").val();
+    //                 // console.log("Tìm thấy phần tử id_box!", id_box);
+    //                 // console.log("Tìm thấy phần tử id_criterion!", id_criterion);
+    //                 if (id_box && id_criterion) {
+    //                     $("#id_common_attest_id").val("H" + id_box + "." + id_criterion + ".");
+    //                     console.log("H" + id_box + "." + id_criterion );
+    //                 }
+    //             }
+    
+    //             function validateCommonAttestID(event) {
+    //                 let common_attestID = $("#id_common_attest_id").val();
+    //                 if (common_attestID.endsWith(".")) {
+    //                     alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+    //                     event.preventDefault();  // Ngăn không cho lưu
+    //                 }
+    //             }
+        
+    //             $("#id_box, #id_criterion").on("keyup change", updateCommonAttestID);
+    //             $("input[type='submit']").on("click", validateCommonAttestID);
+    //             $("#id_box").on("keyup change", clearValidationErrors);
+    //             $("#id_criterion").on("keyup change", clearValidationErrors);
+    //         });
+    //     })(django.jQuery);
+    // }
+    // else if(currentURL.includes('/common_attest/') && currentURL.includes('/change/'))
+    // {
+    //     (function($) {
+    //         $(document).ready(function() {
+
+    //             // alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+    //             function clearValidationErrors() {
+    //                 // 🔹 Xóa toàn bộ thông báo lỗi của Django Admin
+    //                 $(".errornote").remove();
+    //                 $(".errorlist").remove();  // Xóa danh sách lỗi
+    //                 $(".errors").removeClass("errors");  // Xóa class lỗi khỏi input
+                
+    //                 // 🔹 Xóa toàn bộ CSS lỗi của tất cả các input
+    //                 $("input, select, textarea").each(function () {
+    //                     $(this).removeAttr("style"); // Xóa toàn bộ style inline
+    //                     $(this).removeClass("error"); // Xóa class lỗi nếu có
+    //                 });
+    //             }
+                
+
+    //             function updateCommonAttestID() {
+    //                 let id_box = $("#id_box").val();
+    //                 let id_criterion = $("#id_criterion").val();
+    //                 // console.log("Tìm thấy phần tử id_box!", id_box);
+    //                 // console.log("Tìm thấy phần tử id_criterion!", id_criterion);
+    //                 if (id_box && id_criterion) {
+    //                     $("#id_common_attest_id").val("H" + id_box + "." + id_criterion + ".");
+    //                     console.log("H" + id_box + "." + id_criterion );
+    //                 }
+    //             }
+    
+    //             function validateCommonAttestID(event) {
+    //                 let common_attestID = $("#id_common_attest_id").val();
+    //                 if (common_attestID.endsWith(".")) {
+    //                     alert("Vui lòng nhập thêm số thứ tự vào cuối Attest ID !!!");
+    //                     event.preventDefault();  // Ngăn không cho lưu
+    //                 }
+    //             }
+        
+    //             $("#id_box, #id_criterion").on("keyup change", updateCommonAttestID);
+    //             $("input[type='submit']").on("click", validateCommonAttestID);
+    //             $("#id_box").on("keyup change", clearValidationErrors);
+    //             $("#id_criterion").on("keyup change", clearValidationErrors);
+    //         });
+    //     })(django.jQuery);
+
+    // }
+
 
     
     
