@@ -291,7 +291,9 @@ class attest(models.Model):
             # self.note = common.note
             self.slug = common.slug
             # self.image = common.image
-            self.criterion = common.criterion
+            if not self.criterion_id:  # chỉ gán nếu chưa có
+                # self.criterion = common.criterion
+                self.criterion = common.criterion
             self.box = common.box
             self.is_common = True
             

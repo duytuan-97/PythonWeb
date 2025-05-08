@@ -6,6 +6,8 @@ import torch
 import clip
 from PIL import Image
 from django.conf import settings
+from collections import OrderedDict
+
 
 device = "cpu"
 model, preprocess = clip.load("ViT-B/32", device)
@@ -154,19 +156,26 @@ def clean_index():
     global index, labels, image_paths
     print("🧹 Đang dọn dẹp index...")
 
+    # Sử dụng OrderedDict để loại bỏ các đường dẫn trùng lặp, giữ lại lần xuất hiện đầu tiên
+    unique_paths = list(OrderedDict.fromkeys(image_paths))
+    unique_labels = [labels[image_paths.index(path)] for path in unique_paths if path in image_paths]
+
     valid_labels = []
     valid_paths = []
     valid_vectors = []
 
-    for label, path in zip(labels, image_paths):
+    # Kiểm tra từng ảnh
+    for label, path in zip(unique_labels, unique_paths):
         if os.path.exists(path):
             try:
+                # Mở và xử lý ảnh
                 image = preprocess(Image.open(path)).unsqueeze(0).to(device)
                 with torch.no_grad():
                     vector = model.encode_image(image).cpu().numpy()
                 valid_labels.append(label)
                 valid_paths.append(path)
                 valid_vectors.append(vector)
+                print(f"✅ Ảnh hợp lệ: {path}")
             except Exception as e:
                 print(f"⚠️ Lỗi xử lý ảnh {path}: {e}")
         else:
@@ -176,7 +185,10 @@ def clean_index():
     index = faiss.IndexFlatL2(512)
     if valid_vectors:
         index.add(np.vstack(valid_vectors))
+    else:
+        print("⚠️ Không có ảnh hợp lệ để thêm vào index.")
 
+    # Cập nhật danh sách toàn cục
     labels = valid_labels
     image_paths = valid_paths
     save_index()
