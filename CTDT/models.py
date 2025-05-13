@@ -10,8 +10,10 @@ from django.contrib.auth.models import Group, Permission
 from django.contrib.admin.models import LogEntry
 from django.utils.translation import gettext_lazy as _
 
-from .image_utils import add_image_to_index, remove_image_from_index, search_similar_images
+from .image_utils import add_image_to_index, remove_image_from_index, search_similar_images, check_and_add_image
 from django.core.exceptions import ValidationError
+from easy_thumbnails.models import Source, Thumbnail
+from django.core.exceptions import ObjectDoesNotExist
 
 class ProfileUser(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -27,11 +29,6 @@ class UploadedFile(models.Model):
     file = models.FileField(upload_to='media/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
-
-#uploadfile
-class UploadedFile(models.Model):
-    file = models.FileField(upload_to='media/')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
 
 
 # Create your models here.
@@ -143,13 +140,16 @@ class common_attest(models.Model):
     
     def delete(self, *args, **kwargs):
         """Xóa tất cả ảnh liên quan trước khi xóa Attest"""
-       
-        for photo in self.photos.all():
+        try:
+            for photo in self.photos.all():
             
-            if not os.path.exists(photo.photo.path):
-                raise ValidationError(f"File {photo.photo.path} không tồn tại, có thể đã bị xóa trước đó!")
-            else:
-                photo.delete()  # Gọi delete của Photo để xóa file ảnh
+                if not os.path.exists(photo.photo.path):
+                    raise ValidationError(f"File {photo.photo.path} không tồn tại, có thể đã bị xóa trước đó!")
+                else:
+                    photo.delete()  # Gọi delete của Photo để xóa file ảnh
+        except FileNotFoundError:
+            pass  # Nếu file đã bị xóa thì bỏ qua lỗi
+        
         super().delete(*args, **kwargs)  # Xóa object Attest khỏi database
 
 def photo_upload_to(instance, filename):
@@ -179,30 +179,59 @@ class PhotoCommonAttest(models.Model):
     verbose_name = "Hình ảnh"
     verbose_name_plural = "Các hình ảnh"
     
-    def clean(self):
-        if self.photo:
-            similar_images = search_similar_images(self.photo.path)
-            if similar_images:
-                raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
+    # def clean(self):
+        # if self.photo:
+        #     similar_images = search_similar_images(self.photo.path)
+        #     if similar_images:
+        #         raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
+    
+    # def save(self, *args, **kwargs):
+    #     is_new = self.pk is None
+    #     super().save(*args, **kwargs)
+    #     if is_new and self.photo:
+    #         # add_image_to_index(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+    #         check_and_add_image(self.photo.path, f"{self.show.slug}_{self.photo.name}")
     
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+
+        # Gọi super().save() để đảm bảo file ảnh được lưu trước khi kiểm tra
         super().save(*args, **kwargs)
+
         if is_new and self.photo:
-            add_image_to_index(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+            # Chỉ kiểm tra nếu là mới thêm
+            added = check_and_add_image(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+            if not added:
+                # Nếu ảnh đã tồn tại => xóa object và không thêm vào index
+                self.delete()
+                print("❌ Ảnh trùng – đã rollback object.")
     
     def delete(self, *args, **kwargs):
         """Xóa file ảnh thực tế trước khi xóa object"""
+        
         if self.photo:
             remove_image_from_index(self.photo.path)
             thumbnailURL = "./"+get_thumbnailer(self.photo)['small'].url
             if os.path.isfile(thumbnailURL):
-                os.remove(thumbnailURL)  # Xóa file ảnh khỏi hệ thống
-            if os.path.isfile(self.photo.path):
-                os.remove(self.photo.path)  # Xóa file ảnh khỏi hệ thống
-            folder = os.path.dirname(self.photo.path)
-            if not os.listdir(folder):
-                shutil.rmtree(folder)
+                # 💥 XÓA DỮ LIỆU TRONG easy-thumbnails
+                try:
+                    # Lấy ra các source entry tương ứng
+                    source = Source.objects.filter(name=self.photo.name)
+                    if source.exists():
+                        # Xóa các thumbnail liên quan trước
+                        Thumbnail.objects.filter(source__in=source).delete()
+                        # Xóa source cuối cùng
+                        source.delete()
+                    
+                    os.remove(thumbnailURL)  # Xóa file ảnh khỏi hệ thống
+                    if os.path.isfile(self.photo.path):
+                        os.remove(self.photo.path)  # Xóa file ảnh khỏi hệ thống
+                    folder = os.path.dirname(self.photo.path)
+                    if not os.listdir(folder):
+                        shutil.rmtree(folder)
+                except Exception:
+                    pass
+            
             
         super().delete(*args, **kwargs)  # Xóa object khỏi database
     def __str__(self):
@@ -227,7 +256,7 @@ class attest(models.Model):
     updated_on = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
     
     common_attest = models.ForeignKey(common_attest, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Minh chứng dùng chung")
-    is_common = models.BooleanField(default=False, verbose_name="Là minh chứng dùng chung")
+    is_common = models.BooleanField(default=False, verbose_name="Là minh chứng DC")
     
     def clean(self):
         """Kiểm tra xem minh chứng có bị trùng không"""
@@ -262,7 +291,9 @@ class attest(models.Model):
             # self.note = common.note
             self.slug = common.slug
             # self.image = common.image
-            self.criterion = common.criterion
+            if not self.criterion_id:  # chỉ gán nếu chưa có
+                # self.criterion = common.criterion
+                self.criterion = common.criterion
             self.box = common.box
             self.is_common = True
             
@@ -280,17 +311,21 @@ class attest(models.Model):
     def __str__(self):
         return self.title
     class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=['attest_id', 'attest_stt'], name='unique_attest_id_attest_stt')
-        ]
+        # constraints = [
+        #     models.UniqueConstraint(fields=['attest_id', 'attest_stt', 'criterion'], name='unique_attest_id_attest_stt_criterion')
+        # ]
         verbose_name = "Minh chứng"
         verbose_name_plural = "Các minh chứng"
     
     def delete(self, *args, **kwargs):
         """Xóa tất cả ảnh liên quan trước khi xóa Attest"""
-        if not self.is_common:
-            for photo in self.photos.all():
-                photo.delete()  # Gọi delete của Photo để xóa file ảnh
+        try:
+            if not self.is_common:
+                for photo in self.photos.all():
+                    photo.delete()  # Gọi delete của Photo để xóa file ảnh
+        except FileNotFoundError:
+            pass  # Nếu file đã bị xóa thì bỏ qua lỗi
+        
         # else:
             # Với attest dùng chung, chỉ xóa dữ liệu trong database.
             # Gọi delete() trên QuerySet sẽ không gọi phương thức delete() của từng object,
@@ -303,28 +338,58 @@ class PhotoAttest(models.Model):
     show = models.ForeignKey(attest, on_delete=models.CASCADE, related_name="photos")
     photo = models.ImageField(upload_to=photo_upload_to, blank=True, verbose_name="Hình")
 
-    def clean(self):
-        if self.photo:
-            similar_images = search_similar_images(self.photo.path)
-            if similar_images:
-                raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
+    # def clean(self):
+    #     if self.photo:
+    #         similar_images = search_similar_images(self.photo.path)
+    #         if similar_images:
+    #             raise ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
 
+    # def save(self, *args, **kwargs):
+    #     is_new = self.pk is None
+    #     super().save(*args, **kwargs)
+    #     if is_new and self.photo:
+    #         # add_image_to_index(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+    #         check_and_add_image(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+    
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+
+        # Gọi super().save() để đảm bảo file ảnh được lưu trước khi kiểm tra
         super().save(*args, **kwargs)
+
         if is_new and self.photo:
-            add_image_to_index(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+            # Chỉ kiểm tra nếu là mới thêm
+            added = check_and_add_image(self.photo.path, f"{self.show.slug}_{self.photo.name}")
+            if not added:
+                # Nếu ảnh đã tồn tại => xóa object và không thêm vào index
+                self.delete()
+                print("❌ Ảnh trùng – đã rollback object.")
+
+    
     def delete(self, *args, **kwargs):
+        
         if self.photo and not self.show.common_attest:
             remove_image_from_index(self.photo.path)
             thumbnailURL = "./"+get_thumbnailer(self.photo)['small'].url
             if os.path.isfile(thumbnailURL):
-                os.remove(thumbnailURL)
-            if os.path.isfile(self.photo.path):
-                os.remove(self.photo.path)
-            folder = os.path.dirname(self.photo.path)
-            if not os.listdir(folder):
-                shutil.rmtree(folder)
+                # 💥 XÓA DỮ LIỆU TRONG easy-thumbnails
+                try:
+                    # Lấy ra các source entry tương ứng
+                    source = Source.objects.filter(name=self.photo.name)
+                    if source.exists():
+                        # Xóa các thumbnail liên quan trước
+                        Thumbnail.objects.filter(source__in=source).delete()
+                        # Xóa source cuối cùng
+                        source.delete()
+                        
+                        os.remove(thumbnailURL)
+                    if os.path.isfile(self.photo.path):
+                        os.remove(self.photo.path)
+                    folder = os.path.dirname(self.photo.path)
+                    if not os.listdir(folder):
+                        shutil.rmtree(folder)
+                except Exception:
+                    pass
         super().delete(*args, **kwargs)
 
     def __str__(self):

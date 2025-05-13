@@ -1,0 +1,342 @@
+class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
+    
+    change_list_template = "admin/CTDT/attest/change_list.html"
+
+    # def get_urls(self):
+    #     urls = super().get_urls()
+    #     custom_urls = [
+    #         path('train-model/', self.admin_site.admin_view(self.train_model_view), name='CTDT_trainmodel'),
+    #     ]
+    #     return custom_urls + urls
+    # # @method_decorator(staff_member_required)
+    # def train_model_view(self, request):
+    #     # Xử lý logic train model ở đây
+    #     if request.method == "POST":
+    #         # Giả sử hàm train_model() thực hiện quá trình train mô hình
+    #         try:
+    #             train_model(request)
+    #             dj_messages.success(request, "Mô hình đã được train lại thành công.")
+    #         except Exception as e:
+    #             dj_messages.error(request, f"Lỗi train mô hình: {e}")
+    #         return redirect("..")
+    #     return render(request, "admin/train_model.html", context={})
+    
+    
+    form = AttestForm
+    inlines = [PhotoAttestInline]
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        form.save_photos(form.instance)
+    
+    list_display = ('criterion_name', 'attest_id_name','attest_stt', 'title', 'body', 'performer')
+    list_display_links = ('title',)
+    list_filter = (
+        #'criterion',
+        # for ordinary fields
+        #('criterion', DropdownFilter),
+        # for choice fields
+        #('criterion', ChoiceDropdownFilter),
+        # for related fields
+        ('criterion', RelatedDropdownFilter),
+    )
+    
+    ordering = ( 'attest_id','attest_stt')
+    search_fields = ('title', 'performer')
+    # prepopulated_fields = {'slug': ['attest_id','attest_stt']}
+    
+    # def get_readonly_fields(self, request, obj=None):
+    #     """
+    #     Làm cho tất cả các trường readonly nếu đây là minh chứng dùng chung.
+    #     """
+    #     if obj and obj.common_attest is not None:  # Nếu có liên kết với common_attest
+    #         # Lấy danh sách các trường có trong form
+    #         form_fields = [field.name for field in self.model._meta.fields]
+    #         # Loại bỏ các trường không được quản lý bởi form
+    #         readonly_fields = [field for field in form_fields if field in self.form.declared_fields]
+    #         return readonly_fields
+    #     return super().get_readonly_fields(request, obj)
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # if obj:
+        #     if obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+        #         for field_name in form.base_fields:
+        #             form.base_fields[field_name].disabled = True  # Vô hiệu hóa trường
+        # else:
+        #     form.base_fields['is_common'].disabled = True
+        if obj:
+            if obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+                for field_name in form.base_fields:
+                    form.base_fields[field_name].disabled = True  # Vô hiệu hóa trường
+            else:
+                form.base_fields['common_attest'].disabled = True
+                form.base_fields['is_common'].disabled = True
+                if 'photos' in form.base_fields:
+                    form.base_fields['photos'].disabled = False
+        # else:
+        #     form.base_fields['is_common'].disabled = True
+        # return form
+        # Tạo lớp con để override __init__ và truyền request vào form
+        class FormWithRequest(form):
+            def __init__(self2, *args, **inner_kwargs):
+                inner_kwargs['request'] = request
+                super().__init__(*args, **inner_kwargs)
+        return FormWithRequest
+    
+    def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
+        if obj and obj.common_attest is not None:  # Nếu là minh chứng dùng chung
+            context['show_save'] = False  # Ẩn nút lưu
+            context['show_save_and_continue'] = False
+            context['show_save_and_add_another'] = False
+        else:
+            context['show_save'] = True
+            context['show_save_and_continue'] = True
+            context['show_save_and_add_another'] = True
+        return super().render_change_form(request, context, add, change, form_url, obj)
+    
+
+    def save_model(self, request, obj, form, change):
+        
+        super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
+        if change :
+            action_type = "Cập nhật minh chứng"
+        else :
+            action_type = "Thêm mới minh chứng"
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_attest_change', args=[obj.pk]))
+        
+        
+        if not change and obj.common_attest : 
+            # obj.is_common = bool(obj.common_attest)  # Gán True nếu common_attest có giá trị
+            common_attest_data = obj.common_attest
+            obj.attest_id = common_attest_data.common_attest_id
+            obj.attest_stt = common_attest_data.common_attest_stt
+            obj.title = common_attest_data.title
+            obj.body = common_attest_data.body
+            obj.performer = common_attest_data.performer
+            obj.note = "DC"
+            obj.slug = common_attest_data.slug
+            # obj.image = common_attest_data.image
+            # obj.criterion = common_attest_data.criterion
+            obj.box = common_attest_data.box
+            obj.is_common = True
+            
+        else:
+            obj.is_common = False
+        
+        
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
+        # # # EmailNotification.send_attest_email(request, [obj], action_type, admin_url)
+        # # EmailNotification.send_attest_email(request, [obj], action_type)
+        # transaction.on_commit(lambda: 
+        #     EmailNotification.send_attest_email(request, [obj], action_type)
+        # )
+        super().save_model(request, obj, form, change)
+        
+        # Xử lý các PhotoAttest instances
+        if 'photoattest_set' in form.cleaned_data:  # Kiểm tra xem có PhotoAttest instances trong form không
+            for photo in form.cleaned_data['photoattest_set']:
+                try:
+                    self.inlines[0].clean_photo(photo)  # Gọi hàm clean_photo nếu cần
+                except forms.ValidationError as e:
+                    raise forms.ValidationError(e)  # Ném lỗi nếu có vấn đề
+                photo.save()  # Lưu PhotoAttest instance
+    
+    def delete_model(self, request, obj):
+        """ Gửi email khi xóa """
+        
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
+        
+        # # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng", "Delete")
+        # EmailNotification.send_attest_email(request, [obj], "Xóa minh chứng")
+        
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """ Gửi email chứa danh sách attest bị xóa trước khi xóa """
+        # delete photo
+        for attest in queryset:
+            for photo_attest in attest.photos.all():  # Lấy ảnh liên kết
+                if photo_attest.photo:
+                    try:
+                        thumbnail_path = get_thumbnailer(photo_attest.photo)['small'].path
+                        if os.path.isfile(thumbnail_path):
+                            os.remove(thumbnail_path)
+                    except Exception:
+                        pass  # Bỏ qua nếu không có thumbnail
+
+                    if os.path.isfile(photo_attest.photo.path):
+                        os.remove(photo_attest.photo.path)
+                    folder = os.path.dirname(photo_attest.photo.path)
+                    # xóa index
+                    remove_image_from_index(photo_attest.photo.path)
+                    # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
+                    remaining_files = [f for f in os.listdir(folder) if not f.startswith('.')]
+                    if not remaining_files:
+                        shutil.rmtree(folder)
+        
+        user = request.user
+        send_mail_obj, created = ProfileUser.objects.get_or_create(user=user)
+        if send_mail_obj.SendMailUser:
+            dj_messages.success(request, f"✅ Check send mail user {send_mail_obj.SendMailUser}")
+        
+        # # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng", "Delete")
+        # EmailNotification.send_attest_email(request, queryset, "Xóa minh chứng")
+        
+        # Gọi phương thức mặc định để xóa các attest
+        super().delete_queryset(request, queryset)
+    
+    class Media:
+        js = ('../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js')  # Đường dẫn file JS
+        css = {
+            'all': ('../static/css/custom_admin.css',)
+        }
+    @admin.display(description="Tiêu chí")
+    def criterion_name(self, obj):
+        if self.model.objects.filter(criterion=obj.criterion, pk__lt=obj.pk).exists():
+            return ""
+        # return f"{obj.criterion} {obj.title}".upper()
+        return f"{obj.criterion}"
+    @admin.display(description="Mã minh chứng")
+    def attest_id_name(self, obj):
+        if self.model.objects.filter(attest_id=obj.attest_id, pk__lt=obj.pk).exists():
+            return ""
+        return f"{obj.attest_id}".upper()
+    
+    #  # Thêm đường dẫn cho action nhập file Word
+    # def get_urls(self):
+    #     urls = super().get_urls()
+    #     custom_urls = [
+    #         path('import-word/', self.import_word, name='import_word'),
+    #     ]
+    #     return custom_urls + urls
+    
+    # # Giao diện tải file Word
+    # def import_word(self, request):
+    #     from django.template.response import TemplateResponse
+    #     from django.core.files.uploadedfile import UploadedFile
+
+    #     if request.method == "POST" and request.FILES.get('word_file'):
+    #         word_file = request.FILES['word_file']
+    #         if isinstance(word_file, UploadedFile):
+    #             self.handle_uploaded_word(word_file)
+    #             self.message_user(request, "File Word đã được xử lý.")
+    #             return HttpResponse(".")
+    #     return TemplateResponse(request, "admin/import_word.html", context={})
+    
+    
+    actions = ['export_to_word']
+    def export_to_word(self, request, queryset):
+
+        # Tạo file Word mới
+        document = Document()
+
+        # Thêm tiêu đề chính
+        title = document.add_paragraph("DANH MỤC MINH CHỨNG")
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        title.runs[0].font.size = Pt(14)
+        title.runs[0].bold = True
+
+        # Tạo bảng với 5 cột
+        table = document.add_table(rows=1, cols=5)
+        table.style = 'Table Grid'
+
+        # Định nghĩa header
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Tiêu chí'
+        hdr_cells[1].text = 'STT (trong tiêu chí)'
+        hdr_cells[2].text = 'Mã minh chứng'
+        hdr_cells[3].text = 'Tên minh chứng'
+        hdr_cells[4].text = 'Nơi ban hành...'
+
+        # Biến theo dõi tiêu chuẩn và tiêu chí hiện tại
+        current_standard = None
+        current_criterion = None
+        current_attest_id = None
+        merge_criterion_cell = None
+        merge_attest_cell = None
+        merge_stt_cell = None
+        stt_within_criterion = 0
+
+        # Sắp xếp dữ liệu theo tiêu chuẩn và tiêu chí
+        sorted_queryset = queryset.order_by('criterion__standard', 'criterion', 'attest_id')
+
+        for obj in sorted_queryset:
+            # Kiểm tra tiêu chuẩn (standard)
+            if obj.criterion.standard != current_standard:
+                # Nếu tiêu chuẩn thay đổi, thêm dòng tiêu chuẩn mới
+                current_standard = obj.criterion.standard
+                row_cells = table.add_row().cells
+                row_cells[0].merge(row_cells[4])  # Gộp tất cả các cột
+                row_cells[0].text = f"Tiêu chuẩn: {current_standard.title}"
+                row_cells[0].paragraphs[0].runs[0].bold = True
+
+            # Kiểm tra tiêu chí (criterion)
+            if obj.criterion != current_criterion:
+                # Nếu tiêu chí thay đổi, gộp ô tiêu chí trước đó (nếu có)
+                if merge_criterion_cell is not None:
+                    merge_criterion_cell.merge(row_cells[0])
+                current_criterion = obj.criterion
+                merge_criterion_cell = None
+                stt_within_criterion = 0  # Đặt lại bộ đếm STT
+
+            # Kiểm tra mã minh chứng (attest_id)
+            if obj.attest_id != current_attest_id:
+                # Nếu mã minh chứng thay đổi, gộp ô minh chứng trước đó (nếu có)
+                if merge_attest_cell is not None:
+                    merge_attest_cell.merge(row_cells[2])
+                if merge_stt_cell is not None:
+                    merge_stt_cell.merge(row_cells[1])
+                current_attest_id = obj.attest_id
+                merge_attest_cell = None
+                merge_stt_cell = None
+                stt_within_criterion += 1
+
+            # Thêm dòng chi tiết
+            row_cells = table.add_row().cells
+
+            # Gán giá trị cho cột "Tiêu chí"
+            if current_criterion == obj.criterion and merge_criterion_cell is None:
+                merge_criterion_cell = row_cells[0]
+                row_cells[0].text = str(obj.criterion)
+            else:
+                row_cells[0].text = ''
+
+            # Gán giá trị cho cột "STT trong tiêu chí"
+            if current_attest_id == obj.attest_id and merge_stt_cell is None:
+                merge_stt_cell = row_cells[1]
+                row_cells[1].text = str(stt_within_criterion)
+            else:
+                row_cells[1].text = ''
+
+            # Gán giá trị cho cột "Mã minh chứng"
+            if current_attest_id == obj.attest_id and merge_attest_cell is None:
+                merge_attest_cell = row_cells[2]
+                row_cells[2].text = obj.attest_id
+            else:
+                row_cells[2].text = ''
+
+            # Gán giá trị cho các cột khác
+            row_cells[3].text = obj.title  # Tên minh chứng
+            row_cells[4].text = obj.performer  # Nơi ban hành
+
+        # Gộp ô cuối cùng nếu còn dư
+        if merge_criterion_cell is not None:
+            merge_criterion_cell.merge(row_cells[0])
+        if merge_attest_cell is not None:
+            merge_attest_cell.merge(row_cells[2])
+        if merge_stt_cell is not None:
+            merge_stt_cell.merge(row_cells[1])
+
+        # Lưu tài liệu vào HTTP response
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = 'attachment; filename="DanhMucMinhChung.docx"'
+        document.save(response)
+        return response

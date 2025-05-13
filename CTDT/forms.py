@@ -1,7 +1,7 @@
 from django import forms
 
 from CTDT.image_utils import search_similar_images
-from CTDT.model_train.ml_model import predict_image
+# from CTDT.model_train.ml_model import predict_image
 from .models import PhotoAttest, PhotoCommonAttest, UploadedFile, attest, common_attest
 
 from django.core.validators import validate_image_file_extension
@@ -85,6 +85,10 @@ class CommonAttestForm(forms.ModelForm):
         """Make sure only images can be uploaded."""
         for upload in self.files.getlist("photos"):
             validate_image_file_extension(upload)
+            similar_images = search_similar_images(upload)
+            if similar_images:
+                raise forms.ValidationError(f"Hình ảnh này có thể đã tồn tại: {', '.join([img[0] for img in similar_images])}")
+
 
     def save_photos(self, show):
         """Process each uploaded image."""

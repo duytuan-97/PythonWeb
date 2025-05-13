@@ -4,12 +4,21 @@ from django.conf import settings
 
 from django.urls import reverse
 from .models import attest
+from .models import ProfileUser
 
 class EmailNotification:
     
     @staticmethod
     def send_standard_email(request, objects, action_type, admin_url):
         User = get_user_model()
+        
+        # Kiểm tra quyền gửi mail của người dùng hiện tại
+        try:
+            profile = ProfileUser.objects.get(user=request.user)
+            if not profile.SendMailUser:
+                return  # Người dùng không bật tính năng gửi mail
+        except ProfileUser.DoesNotExist:
+            return  # Không gửi nếu chưa có profile
         
         if not objects:
             return
@@ -57,6 +66,14 @@ class EmailNotification:
     def send_criterion_email(request, objects, action_type, admin_url):
         """ Gửi email khi có hành động trên Admin Django """
         User = get_user_model()
+        
+        # Kiểm tra quyền gửi mail của người dùng hiện tại
+        try:
+            profile = ProfileUser.objects.get(user=request.user)
+            if not profile.SendMailUser:
+                return  # Người dùng không bật tính năng gửi mail
+        except ProfileUser.DoesNotExist:
+            return  # Không gửi nếu chưa có profile
         
         if not objects:
             return
@@ -110,6 +127,14 @@ class EmailNotification:
         """ Gửi email khi có hành động trên Admin Django """
         # Lấy URL admin của đối tượng vừa chỉnh sửa
         User = get_user_model()
+        
+        # Kiểm tra quyền gửi mail của người dùng hiện tại
+        try:
+            profile = ProfileUser.objects.get(user=request.user)
+            if not profile.SendMailUser:
+                return  # Người dùng không bật tính năng gửi mail
+        except ProfileUser.DoesNotExist:
+            return  # Không gửi nếu chưa có profile
         
         if not objects:
             return  # Không có giá trị xóa
@@ -167,6 +192,14 @@ class EmailNotification:
         # Lấy URL admin của đối tượng vừa chỉnh sửa
         User = get_user_model()
         
+        # Kiểm tra quyền gửi mail của người dùng hiện tại
+        try:
+            profile = ProfileUser.objects.get(user=request.user)
+            if not profile.SendMailUser:
+                return  # Người dùng không bật tính năng gửi mail
+        except ProfileUser.DoesNotExist:
+            return  # Không gửi nếu chưa có profile
+        
         if not objects:
             return  # Không có giá trị xóa
         subject = f"{action_type}: "
@@ -180,7 +213,8 @@ class EmailNotification:
                     <ul>
             """
         for obj in objects:
-            attest_obj = attest.objects.get(attest_id=obj.attest_id,attest_stt=obj.attest_stt)
+            # attest_obj = attest.objects.get(attest_id=obj.attest_id,attest_stt=obj.attest_stt)
+            attest_obj = attest.objects.filter(attest_id=obj.attest_id, attest_stt=obj.attest_stt).first()
             admin_url = request.build_absolute_uri(reverse('admin:CTDT_attest_change', args=[attest_obj.id]))
             subject += f"{obj.attest_id}; "
             message += f"ID: {obj.attest_id}\n"
@@ -296,6 +330,14 @@ class EmailNotification:
         """ Gửi email khi có hành động trên Admin Django """
         # Lấy URL admin của đối tượng vừa chỉnh sửa
         User = get_user_model()
+        
+        # Kiểm tra quyền gửi mail của người dùng hiện tại
+        try:
+            profile = ProfileUser.objects.get(user=request.user)
+            if not profile.SendMailUser:
+                return  # Người dùng không bật tính năng gửi mail
+        except ProfileUser.DoesNotExist:
+            return  # Không gửi nếu chưa có profile
         
         if not objects:
             return  # Không có giá trị xóa
