@@ -1,3 +1,4 @@
+# chú thích git add
 import shutil
 from django.db import models
 import os
