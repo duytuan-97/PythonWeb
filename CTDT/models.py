@@ -267,7 +267,7 @@ class attest(models.Model):
                 attest_stt=self.attest_stt
             ).exclude(pk=self.pk).exists()
             if exists:
-                raise ValidationError("Minh chứng đã tồn tại trong minh chứng khác.")
+                raise ValidationError("Minh chứng đã tồn tại trong tiêu chí khác.")
         
             # Kiểm tra trùng với các common_attest
             exists_in_common_attest = common_attest.objects.filter(
