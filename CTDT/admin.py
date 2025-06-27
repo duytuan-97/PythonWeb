@@ -70,6 +70,9 @@ from .models import ProfileUser
 from .image_utils import search_similar_images
 from django.core.exceptions import ValidationError
 
+from guardian.admin import GuardedModelAdmin
+from guardian.shortcuts import get_objects_for_user, remove_perm
+
 
 # from django.utils.decorators import method_decorator
 # from django.contrib.admin.views.decorators import staff_member_required
@@ -171,7 +174,8 @@ class standardAdmin(admin.ModelAdmin):
 # tiêu chí
 #admin.site.register(criterion)
 @admin.register(criterion)
-class criterionAdmin(admin.ModelAdmin):   
+# class criterionAdmin(admin.ModelAdmin):   
+class criterionAdmin(GuardedModelAdmin):   
     list_display = ('standard_name','title', 'view_attests_link',)
     list_display_links = ('title',)
     ordering = ('standard','title',)
@@ -224,7 +228,64 @@ class criterionAdmin(admin.ModelAdmin):
         super().delete_queryset(request, queryset)
 
     view_attests_link.short_description = "Minh chứng"
-
+    
+    # ===================phân quyền===============================
+    def has_module_permission(self, request):
+        if super().has_module_permission(request):
+            return True
+        return self.get_model_objects(request).exists()
+    
+    # def get_queryset(self, request):
+    #     if request.user.is_superuser:
+    #         return super().get_queryset(request)
+    #     data = self.get_model_objects(request)
+    #     return data
+    
+    def get_queryset(self, request):
+        print(f"Getting queryset for user: {request.user}, is_superuser: {request.user.is_superuser}")
+        if request.user.is_superuser:
+            qs = super().get_queryset(request)
+            print(f"Superuser queryset: {qs.count()} objects")
+            return qs
+        data = self.get_model_objects(request)
+        print(f"Filtered queryset: {data.count()} objects")
+        return data
+    
+    def get_model_objects(self, request, action=None, klass=None):
+        opts = self.opts
+        actions = [action] if action else ['view', 'change', 'delete']
+        klass = klass if klass else opts.model
+        model_name = klass._meta.model_name
+        
+        return get_objects_for_user(user=request.user, perms=[f'{perm}_{model_name}' for perm in actions], 
+                                    klass=klass, any_perm=True, accept_global_perms=False)
+    
+    def has_permission(self, request, obj, action):
+        opts = self.opts
+        code_name = f'{action}_{opts.model_name}'
+        if obj:
+            return request.user.has_perm(f'{opts.app_label}.{code_name}', obj)
+        else:
+            return True
+            # return self.get_model_objects(request).exists()
+        
+    def has_view_permission(self, request, obj = None):
+        return self.has_permission(request, obj, 'view')
+        # return True
+    
+    def has_change_permission(self, request, obj = None):
+        # result = self.has_permission(request, obj, 'change')
+        return self.has_permission(request, obj, 'change')
+        # print(request.user.is_authenticated)
+        # print(get_objects_for_user(request.user, 'CTDT.change_criterion'))
+        # print(f"User: {request.user}, Obj: {obj}, Permission: {result}")
+        # return result
+        # return True
+    
+    def has_delete_permission(self, request, obj = None):
+        return self.has_permission(request, obj, 'delete')
+        # return True
+# admin.site.register(criterion, criterionAdmin)
 class PhotoAttestInline(admin.TabularInline):
     model = PhotoAttest
     fields = ("showphoto_thumbnail",)

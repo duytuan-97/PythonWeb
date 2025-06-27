@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django_admin_listfilter_dropdown',
     "import_export",
     'easy_thumbnails',
+    'guardian',
 ]
 
 MIDDLEWARE = [
@@ -179,3 +180,8 @@ THUMBNAIL_ALIASES = {
 
 
 THUMBNAIL_EXTENSION = 'jpg'
+
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
+    'guardian.backends.ObjectPermissionBackend',
+)
