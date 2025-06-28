@@ -17,6 +17,9 @@ from .notifications import EmailNotification
 
 import traceback
 
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+
 
 # Create your views here.
 def index(request):
@@ -593,3 +596,8 @@ def get_common_attest_data(request, pk):
     
 def custom_admin_view(request):
     return redirect('/admin/')  # Chuyển hướng đến trang Admin
+
+
+def check_user(request):
+    print(">>> Check user view accessed by:", request.user)
+    return JsonResponse({'is_superuser': request.user.is_superuser})

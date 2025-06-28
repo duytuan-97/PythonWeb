@@ -30,7 +30,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('CTDT.urls')),
     # path('CTDT/', include('CTDT.urls')),
-    path('users/', include('users.urls')),
+    # path('posts/', include('post.urls')),
+    path('admin1/check_user', views.check_user, name='check_user'),
     
 ]
 

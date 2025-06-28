@@ -190,7 +190,7 @@ class criterionAdmin(GuardedModelAdmin):
     )
     
     class Media:
-        js = (['https://code.jquery.com/jquery-3.6.0.min.js','../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
+        js = (['https://code.jquery.com/jquery-3.6.0.min.js','../static/js/custom_admin.js','../static/js/custom_admin/criterion/hiden_button_permissions.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
         
     search_fields = ('title',)
     prepopulated_fields = {'slug': ['title']}
@@ -266,8 +266,8 @@ class criterionAdmin(GuardedModelAdmin):
         if obj:
             return request.user.has_perm(f'{opts.app_label}.{code_name}', obj)
         else:
-            return True
-            # return self.get_model_objects(request).exists()
+            # return True
+            return self.get_model_objects(request).exists()
         
     def has_view_permission(self, request, obj = None):
         return self.has_permission(request, obj, 'view')
