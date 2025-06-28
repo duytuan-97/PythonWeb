@@ -73,6 +73,10 @@ from django.core.exceptions import ValidationError
 from guardian.admin import GuardedModelAdmin
 from guardian.shortcuts import get_objects_for_user, remove_perm
 
+from guardian.models import UserObjectPermission, GroupObjectPermission
+from django.contrib.auth.admin import GroupAdmin
+from django.contrib.auth.models import Group
+
 
 # from django.utils.decorators import method_decorator
 # from django.contrib.admin.views.decorators import staff_member_required
@@ -84,20 +88,84 @@ User = get_user_model()
 class SendMailInline(admin.StackedInline):
     model = ProfileUser
     sendMailUser = False
+
+class UserObjectPermissionInline(admin.TabularInline):
+    model = UserObjectPermission
+    extra = 0
+    classes = ['user-object-perm-table']  # để target trong JS
+    verbose_name = "Quyền truy cập đối tượng"
+    verbose_name_plural = "Các quyền truy cập đối tượng"
+    fields = ('content_type', 'object_pk', 'permission')  # hoặc: 'permission__codename'
+    readonly_fields = fields  # nếu bạn chỉ muốn hiển thị
+
+    def has_add_permission(self, request, obj=None):
+        return False  # Không cho thêm từ đây
+
+    def has_delete_permission(self, request, obj=None):
+        return False
     
 
 # Define a new User admin
 class UserAdmin(BaseUserAdmin):
-    inlines = (SendMailInline, )
+    inlines = (SendMailInline, UserObjectPermissionInline)
+    class Media:
+        js = ('https://code.jquery.com/jquery-3.6.0.min.js',
+              'https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js',
+              '../static/js/custom_admin/user/add_table_permission.js', 
+            )
+        css = {
+            'all': ('https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css',)
+        }
+    # inlines = (SendMailInline,)
 
 # Re-register UserAdmin
 admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
 
+class GroupObjectPermissionInline(admin.TabularInline):
+    model = GroupObjectPermission
+    extra = 0
+    verbose_name = "Quyền truy cập đối tượng"
+    verbose_name_plural = "Các quyền truy cập đối tượng"
+    fields = ('content_type', 'object_pk', 'permission')
+    readonly_fields = fields
+    classes = ['group-object-perm-table']
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+class CustomGroupAdmin(GroupAdmin):
+    inlines = (GroupObjectPermissionInline,)
+
+    class Media:
+        js = (
+            'https://code.jquery.com/jquery-3.6.0.min.js',
+            'https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js',
+            '../static/js/custom_admin/user/add_group_permission.js',
+        )
+        css = {
+            'all': (
+                'https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css',
+            )
+        }
+
+admin.site.unregister(Group)
+admin.site.register(Group, CustomGroupAdmin)
+
 
 @admin.action(description="Mark selected stories as published")
 def make_published(modeladmin, request, queryset):
     queryset.update(status="p")
+
+
+# @admin.register(UserObjectPermission)
+# class UserObjectPermissionAdmin(admin.ModelAdmin):
+#     list_display = ('user', 'permission', 'content_type', 'object_pk')
+#     list_filter = ('permission__content_type',)
+#     search_fields = ('user__username', 'object_pk', 'permission__codename')
+#     list_per_page = 20
 
 # hộp
 # admin.site.register(box)
