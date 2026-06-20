@@ -87,7 +87,7 @@ DATABASES = {
         # 'NAME': BASE_DIR / 'db.sqlite3',
         'NAME': 'ctdt',
         'USER': 'root',  
-        'PASSWORD': '',  
+        'PASSWORD': 'ServBay.dev',  
         'HOST': '127.0.0.1',  
         'PORT': '3306',  
         'OPTIONS': {  

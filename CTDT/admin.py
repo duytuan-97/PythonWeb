@@ -9,7 +9,7 @@ from django.shortcuts import redirect, render
 from django.db.models import Count
 
 from CTDT.forms import AttestForm, CommonAttestForm
-from CTDT.image_utils import remove_image_from_index
+# from CTDT.image_utils import remove_image_from_index
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.shared import Inches
@@ -18,6 +18,10 @@ from docx.oxml.ns import nsdecls
 from docx.enum.section import WD_SECTION
 from functools import lru_cache
 # from CTDT.model_train.ml_model import predict_image, train_model
+
+from collections import defaultdict
+from django.utils.safestring import mark_safe
+from django.contrib.contenttypes.models import ContentType
 
 
 # from CTDT import forms
@@ -72,10 +76,15 @@ from django.core.exceptions import ValidationError
 
 from guardian.admin import GuardedModelAdmin
 from guardian.shortcuts import get_objects_for_user, remove_perm
+from django.core.exceptions import PermissionDenied
 
 from guardian.models import UserObjectPermission, GroupObjectPermission
 from django.contrib.auth.admin import GroupAdmin
 from django.contrib.auth.models import Group
+
+from .models import PDFScanFile
+from .models import PDFCommonAttestFile
+from django.contrib import messages
 
 
 # from django.utils.decorators import method_decorator
@@ -95,9 +104,46 @@ class UserObjectPermissionInline(admin.TabularInline):
     can_delete = False
     verbose_name = "Quyền truy cập đối tượng"
     verbose_name_plural = "Các quyền truy cập đối tượng"
-    fields = ('content_type', 'object_pk', 'permission')
+    fields = ('content_type', 'object_pk', 'object_name', 'permission')#'object_code', 
     readonly_fields = fields
     classes = ['user-object-perm-table']
+
+    # def object_code(self, obj):
+    #     content_obj = obj.content_object
+
+    #     if not content_obj:
+    #         return "-"
+
+    #     # Criterion
+    #     if hasattr(content_obj, "criterion_id"):
+    #         return content_obj.criterion_id
+
+    #     # Attest
+    #     if hasattr(content_obj, "attest_id"):
+    #         return content_obj.attest_id
+
+    #     # Common Attest
+    #     if hasattr(content_obj, "common_attest_id"):
+    #         return content_obj.common_attest_id
+
+    #     # Box
+    #     if hasattr(content_obj, "box_id"):
+    #         return content_obj.box_id
+
+    #     return "-"
+
+    # object_code.short_description = "Mã"
+
+    def object_name(self, obj):
+        try:
+            if obj.content_object:
+                return str(obj.content_object)
+        except Exception:
+            pass
+
+        return f"ID: {obj.object_pk}"
+
+    object_name.short_description = "Đối tượng"
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -107,8 +153,24 @@ class UserObjectPermissionInline(admin.TabularInline):
 
     def has_delete_permission(self, request, obj=None):
         return False
-    
 
+# ===============================Phân Quyền================================================    
+
+class SuperuserPermissionMixin:
+
+    def can_change_permissions(self, request, obj=None):
+        return request.user.is_superuser
+
+    def obj_perms_manage_view(self, request, object_pk):
+        if not request.user.is_superuser:
+            raise PermissionDenied
+
+        return super().obj_perms_manage_view(
+            request,
+            object_pk
+        )
+
+# ===============================End Phân Quyền============================================
 # Define a new User admin
 class UserAdmin(BaseUserAdmin):
     inlines = (SendMailInline, UserObjectPermissionInline)
@@ -174,12 +236,71 @@ def make_published(modeladmin, request, queryset):
 #     search_fields = ('user__username', 'object_pk', 'permission__codename')
 #     list_per_page = 20
 
+
+from .models import Major, box
+
+# Cấu hình Admin cho Ngành (Major)
+@admin.register(Major)
+class MajorAdmin(admin.ModelAdmin):
+    # Thêm 'view_boxes_link' vào list_display để hiển thị cột link ra ngoài danh sách
+    list_display = ('id', 'name', 'view_boxes_link', 'slug', 'created_on', 'updated_on')
+    search_fields = ('name', 'id')
+
+    # Tận dụng bộ công cụ JS tạo slug tự động giống như bảng box của bạn
+    class Media:
+        js = ([
+            '../static/js/custom_admin.js', 
+            'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'
+        ])
+    
+    # Hàm xử lý tạo link click xem các box tương ứng của Ngành
+    def view_boxes_link(self, obj):
+        # Đếm số lượng hộp thuộc ngành này bằng related_name="boxes" bạn đã cấu hình ở model
+        count = obj.boxes.count()
+        
+        # Tạo URL filter danh sách box theo ID của ngành hiện tại
+        url = (
+            reverse("admin:CTDT_box_changelist")  # Gọi trang danh sách của model box
+            + "?"
+            + urlencode({"major__id": f"{obj.id}"})  # Filter theo trường major (bản chất trong DB là major_id)
+        )
+        # Trả về mã HTML là một thẻ <a> màu xanh trỏ đến link filter kèm số lượng hộp
+        return format_html('<a href="{}">{} Hộp</a>', url, count)
+    
+    # Định nghĩa tiêu đề cột hiển thị trên giao diện Admin
+    view_boxes_link.short_description = "Hộp thuộc ngành"
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)  # Lưu object trước để lấy primary key
+        if change:
+            action_type = "Cập nhật ngành"
+        else:
+            action_type = "Thêm mới ngành"
+        
+        # Tạo link tuyệt đối dẫn thẳng tới trang chỉnh sửa ngành vừa tương tác
+        # Lưu ý: Sửa 'CTDT' thành tên chính xác của app chứa model nếu ứng dụng của bạn đặt tên khác
+        admin_url = request.build_absolute_uri(reverse('admin:CTDT_major_change', args=[obj.pk]))
+        
+        # Bạn có thể mở comment dòng dưới này khi muốn kích hoạt tính năng gửi email log
+        # EmailNotification.send_box_email(request, [obj], action_type, admin_url)
+
+    def delete_model(self, request, obj):
+        # EmailNotification.send_box_email(request, [obj], "Xóa ngành", "Delete")
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        # EmailNotification.send_box_email(request, queryset, "Xóa ngành", "Delete")
+        super().delete_queryset(request, queryset)
+
 # hộp
 # admin.site.register(box)
 @admin.register(box)
 class boxAdmin(admin.ModelAdmin): 
     search_fields = ('title',)
     # prepopulated_fields = {'slug': ['title']}
+    # Thêm 2 dòng dưới đây để hiển thị tên ngành và thêm bộ lọc nhanh theo ngành
+    list_display = ('id', 'title', 'major', 'location', 'created_on')  # Hiện tên ngành ở danh sách hộp
+    list_filter = ('major',)  # Thêm bộ lọc nhanh theo Ngành ở thanh bên phải màn hình
 
     class Media:
         js = (['../static/js/custom_admin.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
@@ -245,13 +366,79 @@ class standardAdmin(admin.ModelAdmin):
 
     view_criterion_link.short_description = "Tiêu chí"
     
-    
+
+class AssignedUsersMixin:
+
+    def get_permission_objects(self, obj):
+        """
+        Mặc định chỉ lấy chính object hiện tại.
+        Các admin khác có thể override.
+        """
+        return [obj]
+
+    def assigned_users(self, obj):
+
+        user_perms = defaultdict(set)
+
+        permission_map = {
+            'view': 'Xem',
+            'add': 'Thêm',
+            'change': 'Sửa',
+            'delete': 'Xóa',
+        }
+
+        permission_objects = self.get_permission_objects(obj)
+
+        for perm_obj in permission_objects:
+
+            ct = ContentType.objects.get_for_model(perm_obj)
+
+            perms = UserObjectPermission.objects.filter(
+                content_type=ct,
+                object_pk=str(perm_obj.pk)
+            ).select_related(
+                'user',
+                'permission'
+            )
+
+            for p in perms:
+
+                user = p.user.username
+
+                action = p.permission.codename.split('_', 1)[0]
+
+                user_perms[user].add(
+                    permission_map.get(action, action)
+                )
+
+        result = []
+
+        order = ['Xem', 'Thêm', 'Sửa', 'Xóa']
+
+        for user in sorted(user_perms.keys()):
+
+            perms_text = ", ".join(
+                sorted(
+                    user_perms[user],
+                    key=lambda x: order.index(x)
+                    if x in order else 999
+                )
+            )
+
+            result.append(
+                f"{user} ({perms_text})"
+            )
+
+        return mark_safe("<br>".join(result)) if result else "-"
+
+    assigned_users.short_description = "Giáo viên được phân quyền"
+
 # tiêu chí
 #admin.site.register(criterion)
 @admin.register(criterion)
 # class criterionAdmin(admin.ModelAdmin):   
-class criterionAdmin(GuardedModelAdmin):   
-    list_display = ('standard_name','title', 'view_attests_link',)
+class criterionAdmin(AssignedUsersMixin, SuperuserPermissionMixin, GuardedModelAdmin):   
+    list_display = ('standard_name','title', 'view_attests_link', 'assigned_users')
     list_display_links = ('title',)
     ordering = ('standard','title',)
     list_filter = (
@@ -266,7 +453,6 @@ class criterionAdmin(GuardedModelAdmin):
     
     class Media:
         js = (['https://code.jquery.com/jquery-3.6.0.min.js','../static/js/custom_admin.js','../static/js/custom_admin/criterion/hiden_button_permissions.js', 'https://cdnjs.cloudflare.com/ajax/libs/speakingurl/14.0.1/speakingurl.min.js'])  # Đường dẫn file JS
-        
     search_fields = ('title',)
     prepopulated_fields = {'slug': ['title']}
     
@@ -284,6 +470,58 @@ class criterionAdmin(GuardedModelAdmin):
             + urlencode({"criterion__id": f"{obj.id}"})
         )
         return format_html('<a href="{}">{}</a>', url, count)
+    
+    # =======================Show pemission User============================
+    def assigned_users(self, obj):
+
+        perms = UserObjectPermission.objects.filter(
+            content_type__model='criterion',
+            object_pk=str(obj.pk)
+        ).select_related(
+            'user',
+            'permission'
+        )
+
+        user_perms = defaultdict(set)
+
+        permission_map = {
+            'view_criterion': 'Xem',
+            'add_criterion': 'Thêm',
+            'change_criterion': 'Sửa',
+            'delete_criterion': 'Xóa',
+        }
+
+        for p in perms:
+            user = p.user.username
+
+            user_perms[user].add(
+                permission_map.get(
+                    p.permission.codename,
+                    p.permission.codename
+                )
+            )
+
+        result = []
+
+        for user in sorted(user_perms.keys()):
+            perms_text = ", ".join(
+                sorted(
+                    user_perms[user],
+                    key=lambda x: ['Xem', 'Thêm', 'Sửa', 'Xóa'].index(x)
+                    if x in ['Xem', 'Thêm', 'Sửa', 'Xóa']
+                    else 999
+                )
+            )
+
+            result.append(
+                f"{user} ({perms_text})"
+            )
+
+        return mark_safe("<br>".join(result)) if result else "-"
+
+    assigned_users.short_description = "Giáo viên được phân quyền"
+    # ===================================================
+
     
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)  # 🔹 Đảm bảo obj đã được lưu trước khi lấy pk
@@ -305,6 +543,7 @@ class criterionAdmin(GuardedModelAdmin):
     view_attests_link.short_description = "Minh chứng"
     
     # ===================phân quyền===============================
+    
     def has_module_permission(self, request):
         if super().has_module_permission(request):
             return True
@@ -362,13 +601,46 @@ class criterionAdmin(GuardedModelAdmin):
         # return True
 # admin.site.register(criterion, criterionAdmin)
 class PhotoAttestInline(admin.TabularInline):
+    # model = PhotoAttest
+    # fields = ("showphoto_thumbnail",)
+    # readonly_fields = ("showphoto_thumbnail",)
+    # max_num = 0
+
     model = PhotoAttest
-    fields = ("showphoto_thumbnail",)
-    readonly_fields = ("showphoto_thumbnail",)
-    max_num = 0
+
+    fields = (
+        "showphoto_thumbnail",
+        # "photo",
+    )
+
+    readonly_fields = (
+        "showphoto_thumbnail",
+    )
+
+    extra = 1
+
+    can_delete = True
+
+    #Ngăn quyền sửa nếu đã là common_attets
+    def has_add_permission(self, request, obj=None):
+        if obj and obj.common_attest:
+            return False
+        return super().has_add_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.common_attest:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.common_attest:
+            return False
+        return super().has_change_permission(request, obj)
+    # ==========================
 
     def showphoto_thumbnail(self, instance):
         """A (pseudo)field that returns an image thumbnail for a show photo."""
+        print("PHOTO =", instance.photo)
         tpl = get_template("admin/templates/show_thumbnail.html")
         return tpl.render({"photo": instance.photo})
     
@@ -401,22 +673,78 @@ class PhotoCommonAttestInline(admin.TabularInline):
     
     showphoto_thumbnail.short_description = _("Thumbnail")
 
+# Form cho PDFScanFile để kiểm tra trùng lặp và file scan
+# class PDFScanFileForm(forms.ModelForm):
+#     class Meta:
+#         model = PDFScanFile
+#         fields = '__all__'
+
+    # def clean(self):
+    #     cleaned_data = super().clean()
+    #     file = cleaned_data.get('file')
+    #     # if file:
+    #     #     # Gán file để model clean có thể kiểm tra
+    #     #     self.instance.file = file
+    #     #     self.instance.clean()  # Gọi clean của model để kiểm tra file scan và trùng lặp
+    #     # return cleaned_data
+        
+    #     if file:
+    #         self.instance.file = file
+    #         try:
+    #             self.instance.clean()  # Gọi clean của model để kiểm tra file scan và trùng lặp
+    #         except ValidationError as e:
+    #             self.add_error('file', e)  # Gắn lỗi vào trường file để hiển thị trong form
+    #     return cleaned_data
+
+class PDFScanFileInline(admin.StackedInline): #ẩn scan pdf
+    model = PDFScanFile
+    # form = PDFScanFileForm  # Sử dụng form để kiểm tra trùng lặp
+    extra = 1
+    max_num = 3  # Chỉ cho phép ba file
+    can_delete = True
+
+    #Ngăn quyền sửa nếu đã là common_attets
+    def has_add_permission(self, request, obj=None):
+        if obj and obj.common_attest:
+            return False
+        return super().has_add_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.common_attest:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.common_attest:
+            return False
+        return super().has_change_permission(request, obj)
+    #====================================
+
+class PDFCommonAttestFileInline(admin.StackedInline):
+    model = PDFCommonAttestFile
+    extra = 1
+    max_num = 3  # Chỉ cho phép ba file
+    can_delete = True
+
+
+
 #admin.site.register(attest)
 @admin.register(attest)
 # class attestAdmin(admin.ModelAdmin):
-class attestAdmin(GuardedModelAdmin):
+class attestAdmin(AssignedUsersMixin, SuperuserPermissionMixin, GuardedModelAdmin):
 # class attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
     
     change_list_template = "admin/CTDT/attest/change_list.html"
     
     form = AttestForm
-    inlines = [PhotoAttestInline]
+    inlines = [PhotoAttestInline, PDFScanFileInline] #ẩn scan pdf
+    # inlines = [PhotoAttestInline]
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
         form.save_photos(form.instance)
     # exclude = {'is_common',}
-    list_display = ('criterion_name', 'attest_id_name','attest_stt', 'title', 'body', 'performer', "is_common")
+    list_display = ('criterion_name', 'attest_id_name','attest_stt', 'title', 'body', 'performer', "is_common", 'assigned_users')
     list_display_links = ('title',)
     list_filter = (
         #'criterion',
@@ -454,9 +782,48 @@ class attestAdmin(GuardedModelAdmin):
     #             super().__init__(*args, **inner_kwargs)
     #     return FormWithRequest
     
+    #========================Phân quyền===============================
+    def get_permission_objects(self, obj):
+        print(
+            "ATT:",
+            obj,
+            "CRITERION:",
+            obj.criterion
+        )
+        objects = [obj]
+
+        if obj.criterion:
+            objects.append(obj.criterion)
+
+        return objects
+    # =================================================================
+    def save_formset(self, request, form, formset, change):
+        try:
+            formset.save()
+        except ValidationError as e:
+            messages.warning(request, f"Không thể thêm file PDF: {e.message}")
+            
+            # Ngăn không hiển thị thông báo thành công
+            self._suppress_success_message = True
+
+            # Gán lỗi vào formset để Django không redirect
+            form._errors = form._errors or {}
+            form._errors["__all__"] = form.error_class([e.message])
+
+    def response_change(self, request, obj):
+        suppress = getattr(self, '_suppress_success_message', False)
+        if suppress:
+            storage = messages.get_messages(request)
+            new_storage = [m for m in storage if m.level != messages.SUCCESS]
+            storage._queued_messages = new_storage
+        self._suppress_success_message = False
+        return super().response_change(request, obj)
+    
+    # ===================
+    
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        print("Debug: User permissions:", request.user.get_all_permissions())
+        # print("Debug: User permissions:", request.user.get_all_permissions())
         print("Debug: Base fields:", list(form.base_fields.keys()))
         
         if obj:
@@ -583,7 +950,7 @@ class attestAdmin(GuardedModelAdmin):
                         os.remove(photo_attest.photo.path)
                     folder = os.path.dirname(photo_attest.photo.path)
                     # xóa index
-                    remove_image_from_index(photo_attest.photo.path)
+                    # remove_image_from_index(photo_attest.photo.path)
                     # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
                     remaining_files = [f for f in os.listdir(folder) if not f.startswith('.')]
                     if not remaining_files:
@@ -622,10 +989,11 @@ class attestAdmin(GuardedModelAdmin):
     #         return ""
     #     return f"{obj.attest_id}".upper()
     
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        self._displayed_criteria_attest = set()  # Store seen criterion_ids
-        return qs.order_by('criterion__standard', 'criterion', 'attest_id')
+    ## trùng lặp đã gộp với get_queryset(self, request) cuối
+    # def get_queryset(self, request):
+    #     qs = super().get_queryset(request)
+    #     self._displayed_criteria_attest = set()  # Store seen criterion_ids
+    #     return qs.order_by('criterion__standard', 'criterion', 'attest_id')
 
     def changelist_view(self, request, extra_context=None):
         self._displayed_criteria_attest = set()
@@ -1382,16 +1750,94 @@ class attestAdmin(GuardedModelAdmin):
     #         return super().get_queryset(request)
     #     data = self.get_model_objects(request)
     #     return data
-    
+
+    # trùng lặp với get_queryset(self, request)
+    # def get_queryset(self, request):
+    #     print(
+    #         f"Getting queryset for user: {request.user}, "
+    #         f"is_superuser: {request.user.is_superuser}"
+    #     )
+
+    #     self._displayed_criteria_attest = set()
+
+    #     if request.user.is_superuser:
+    #         qs = super().get_queryset(request).order_by(
+    #             'criterion__standard',
+    #             'criterion',
+    #             'attest_id'
+    #         )
+    #         print(f"Superuser queryset: {qs.count()} objects")
+    #         return qs
+
+    #     qs = self.get_model_objects(request).order_by(
+    #         'criterion__standard',
+    #         'criterion',
+    #         'attest_id'
+    #     )
+
+    #     print(f"Filtered queryset: {qs.count()} objects")
+    #     return qs
+
     def get_queryset(self, request):
-        print(f"Getting queryset for user: {request.user}, is_superuser: {request.user.is_superuser}")
+        print(
+            f"Getting queryset for user: {request.user}, "
+            f"is_superuser: {request.user.is_superuser}"
+        )
+
+        self._displayed_criteria_attest = set()
+
+        qs = super().get_queryset(request)
+
         if request.user.is_superuser:
-            qs = super().get_queryset(request)
+            qs = qs.order_by(
+                'criterion__standard',
+                'criterion',
+                'attest_id'
+            )
+
             print(f"Superuser queryset: {qs.count()} objects")
             return qs
-        data = self.get_model_objects(request)
-        print(f"Filtered queryset: {data.count()} objects")
-        return data
+
+        # Lấy các tiêu chí mà user được phân quyền
+        allowed_criteria = get_objects_for_user(
+            request.user,
+            [
+                'CTDT.view_criterion',
+                'CTDT.change_criterion'
+            ],
+            klass=criterion,
+            any_perm=True,
+            accept_global_perms=False
+        )
+
+        qs = qs.filter(
+            criterion__in=allowed_criteria
+        ).order_by(
+            'criterion__standard',
+            'criterion',
+            'attest_id'
+        )
+
+        print(
+            f"Filtered queryset: {qs.count()} objects "
+            f"from {allowed_criteria.count()} criteria"
+        )
+
+        return qs
+
+    # def get_queryset(self, request):
+    #     qs = super().get_queryset(request)
+    #     self._displayed_criteria_attest = set()  # Store seen criterion_ids
+    #     return qs.order_by('criterion__standard', 'criterion', 'attest_id')
+    
+    #     print(f"Getting queryset for user: {request.user}, is_superuser: {request.user.is_superuser}")
+    #     if request.user.is_superuser:
+    #         qs = super().get_queryset(request)
+    #         print(f"Superuser queryset: {qs.count()} objects")
+    #         return qs
+    #     data = self.get_model_objects(request)
+    #     print(f"Filtered queryset: {data.count()} objects")
+    #     return data
     
     def get_model_objects(self, request, action=None, klass=None):
         opts = self.opts
@@ -1411,22 +1857,64 @@ class attestAdmin(GuardedModelAdmin):
             # return True
             return self.get_model_objects(request).exists()
         
-    def has_view_permission(self, request, obj = None):
-        return self.has_permission(request, obj, 'view')
-        # return True
+    # def has_view_permission(self, request, obj = None):
+    #     return self.has_permission(request, obj, 'view')
+    #     # return True
     
-    def has_change_permission(self, request, obj = None):
-        # result = self.has_permission(request, obj, 'change')
-        return self.has_permission(request, obj, 'change')
-        # print(request.user.is_authenticated)
-        # print(get_objects_for_user(request.user, 'CTDT.change_criterion'))
-        # print(f"User: {request.user}, Obj: {obj}, Permission: {result}")
-        # return result
-        # return True
+    def has_view_permission(self, request, obj=None):
+
+        if request.user.is_superuser:
+            return True
+
+        if obj is None:
+            return True
+
+        return request.user.has_perm(
+            'CTDT.view_criterion',
+            obj.criterion
+        ) or request.user.has_perm(
+            'CTDT.change_criterion',
+            obj.criterion
+        )
     
-    def has_delete_permission(self, request, obj = None):
-        return self.has_permission(request, obj, 'delete')
-        # return True
+    # def has_change_permission(self, request, obj = None):
+    #     # result = self.has_permission(request, obj, 'change')
+    #     return self.has_permission(request, obj, 'change')
+    #     # print(request.user.is_authenticated)
+    #     # print(get_objects_for_user(request.user, 'CTDT.change_criterion'))
+    #     # print(f"User: {request.user}, Obj: {obj}, Permission: {result}")
+    #     # return result
+    #     # return True
+    
+    def has_change_permission(self, request, obj=None):
+
+        if request.user.is_superuser:
+            return True
+
+        if obj is None:
+            return True
+
+        return request.user.has_perm(
+            'CTDT.change_criterion',
+            obj.criterion
+        )
+
+    # def has_delete_permission(self, request, obj = None):
+    #     return self.has_permission(request, obj, 'delete')
+    #     # return True
+
+    def has_delete_permission(self, request, obj=None):
+
+        if request.user.is_superuser:
+            return True
+
+        if obj is None:
+            return False
+
+        return request.user.has_perm(
+            'CTDT.delete_criterion',
+            obj.criterion
+        )
     
     
     
@@ -1434,15 +1922,15 @@ class attestAdmin(GuardedModelAdmin):
 @admin.register(common_attest)
 # class common_attestAdmin(ImportExportActionModelAdmin, admin.ModelAdmin):
 # class common_attestAdmin(admin.ModelAdmin):
-class common_attestAdmin(GuardedModelAdmin):
+class common_attestAdmin(AssignedUsersMixin, SuperuserPermissionMixin, GuardedModelAdmin):
     form = CommonAttestForm
-    inlines = [PhotoCommonAttestInline]
+    inlines = [PDFCommonAttestFileInline, PhotoCommonAttestInline]
     
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
         form.save_photos(form.instance)
     
-    list_display = ('common_attest_id_name','common_attest_stt', 'title', 'body', 'performer')
+    list_display = ('common_attest_id_name','common_attest_stt', 'title', 'body', 'performer', 'assigned_users')
     list_display_links = ('title',)
     # list_filter = (
     #     #'criterion',
@@ -1469,6 +1957,15 @@ class common_attestAdmin(GuardedModelAdmin):
         css = {
             'all': ('../static/css/custom_admin.css',)
         }
+    # ===================phân quyền===============================
+    def get_permission_objects(self, obj):
+        objects = [obj]
+
+        if obj.criterion:
+            objects.append(obj.criterion)
+
+        return objects
+    #==============================================================
     def save_model(self, request, obj, form, change):
         """
         Ghi đè save_model cập nhật tất cả các attest liên kết với common_attest.
@@ -1556,7 +2053,7 @@ class common_attestAdmin(GuardedModelAdmin):
                     # Kiểm tra thư mục tồn tại trước khi xóa
                     folder1 = os.path.dirname(photo_attest.photo.path)
                     # xóa index
-                    remove_image_from_index(photo_attest.photo.path)
+                    # remove_image_from_index(photo_attest.photo.path)
                     if os.path.exists(folder1) and not os.listdir(folder1):  # Kiểm tra thư mục rỗng
                         shutil.rmtree(folder1)
                     # # Kiểm tra và xóa folder nếu rỗng (loại bỏ file ẩn nếu cần)
