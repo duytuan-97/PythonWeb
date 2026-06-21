@@ -27,8 +27,35 @@ SECRET_KEY = 'django-insecure-&njhsxx#t_97tk#920mb+o&h!+(7)@(53$c1xt*ue9cw(j)69s
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# ALLOWED_HOSTS = [
+#     "localhost",
+#     "127.0.0.1",
+#     "matching-valium-cape-introduced.trycloudflare.com",
+#     "https://matching-valium-cape-introduced.trycloudflare.com",
+# ]
 
+# Bước 1: Tải Cloudflared
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/?utm_source=chatgpt.com
+
+# Bước 2: Đổi tên file --> cloudflared.exe
+# Và đặt vào thư mục
+# C:\cloudflared\
+
+# Bước 3: Mở Terminal thứ 2
+# Giữ nguyên terminal đang chạy Django: python manage.py runserver 0.0.0.0:8000
+# Mở Command Prompt hoặc PowerShell mới: cd C:\cloudflared --> .\cloudflared.exe --version --> Nếu hiện version là OK
+
+# Bước 4: Tạo Tunnel
+# .\cloudflared.exe tunnel --url http://localhost:8000 --> host có dạng : https://blue-river-xyz.trycloudflare.com
+
+# Bước 5: Cho phép Host trong Django
+# Nếu chưa có, mở settings.py và sửa như dưới
+
+ALLOWED_HOSTS = ["*"]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.trycloudflare.com",
+]
 
 # Application definition
 
