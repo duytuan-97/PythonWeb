@@ -171,6 +171,21 @@ class SuperuserPermissionMixin:
         )
 
 # ===============================End Phân Quyền============================================
+
+@admin.action(description="Reset mật khẩu về mặc định (1111)")
+def reset_password(modeladmin, request, queryset):
+    count = 0
+
+    for user in queryset:
+        user.set_password("1111")
+        user.save()
+        count += 1
+
+    messages.success(
+        request,
+        f"Đã reset mật khẩu của {count} người dùng về mặc định: 1111"
+    )
+
 # Define a new User admin
 class UserAdmin(BaseUserAdmin):
     inlines = (SendMailInline, UserObjectPermissionInline)
@@ -183,6 +198,7 @@ class UserAdmin(BaseUserAdmin):
             'all': ('https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css',)
         }
     # inlines = (SendMailInline,)
+    actions = [reset_password]
 
 # Re-register UserAdmin
 admin.site.unregister(User)
